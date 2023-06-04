@@ -141,3 +141,5 @@ int RoundDownToInt(float numberToRound);
 
 float NormalizeByte(unsigned char byteValue);
 unsigned char DenormalizeByte(float zeroToOne);
+
+

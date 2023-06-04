@@ -1,4 +1,5 @@
 #include "Engine/Math/IntVec2.hpp"
+#include "Engine/Math/Vec2.hpp"
 #include "Engine/Math/MathUtils.hpp"
 #include "Engine/Core/StringUtils.hpp"
 #include "Engine/Core/ErrorWarningAssert.hpp"
@@ -12,6 +13,13 @@ IntVec2::IntVec2(int x, int y)
 {
 	this->x = x;
 	this->y = y;
+}
+
+IntVec2::IntVec2(const Vec2& copyFrom):
+	x(RoundDownToInt(copyFrom.x)),
+	y(RoundDownToInt(copyFrom.y))
+{
+
 }
 
 float const IntVec2::GetLength() const
@@ -82,6 +90,11 @@ IntVec2 const IntVec2::operator+(IntVec2 const& vecToAdd) const {
 
 IntVec2 const IntVec2::operator*(int scale) const {
 	return IntVec2(x * scale, y * scale);
+}
+
+IntVec2 const IntVec2::operator/(int scale) const
+{
+	return IntVec2(x / scale, y / scale);
 }
 
 void IntVec2::operator-=(IntVec2 const& vecToSubtract) {

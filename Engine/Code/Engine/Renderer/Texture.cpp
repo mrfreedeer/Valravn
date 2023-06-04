@@ -27,6 +27,7 @@ TextureView* Texture::GetShaderResourceView(bool multiSampled)
 	TextureViewInfo info;
 	info.m_type = TextureBindFlagBit::TEXTURE_BIND_SHADER_RESOURCE_BIT;
 	info.m_isMultiSampled = multiSampled;
+	info.m_isCubeMap = m_isCubeMap;
 	return  GetOrCreateView(info);
 }
 
@@ -72,11 +73,16 @@ TextureView* Texture::GetOrCreateView(TextureViewInfo const& viewInfo)
 	case TextureBindFlagBit::TEXTURE_BIND_SHADER_RESOURCE_BIT: {
 		D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
 		desc.Format = LocalToD3D11ColorFormat(m_format);
-		if (viewInfo.m_isMultiSampled) {
-			desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
+		if (viewInfo.m_isCubeMap) {
+			desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
 		}
 		else {
-			desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			if (viewInfo.m_isMultiSampled) {
+				desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
+			}
+			else {
+				desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			}
 		}
 		desc.Texture2D.MostDetailedMip = 0;
 		desc.Texture2D.MipLevels = 1;

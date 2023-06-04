@@ -13,6 +13,7 @@
 #include "Engine/Math/OBB2.hpp"
 #include "Engine/Math/Plane2D.hpp"
 #include "Engine/Math/Plane3D.hpp"
+#include "Engine/Math/Mat44.hpp"
 #include "Engine/Core/Vertex_PCU.hpp"
 #include "Engine/Core/Vertex_PNCU.hpp"
 #include "Engine/Core/ErrorWarningAssert.hpp"
@@ -440,6 +441,15 @@ IntRange BufferParser::ParseIntRange()
 	return IntRange(min, max);
 }
 
+Mat44 BufferParser::ParseMat44()
+{
+	Mat44 newMat;
+	for (int floatInd = 0; floatInd < 16; floatInd++) {
+		newMat.m_values[floatInd] = ParseFloat();
+	}
+	return newMat;
+}
+
 size_t BufferParser::GetTotalSize() const
 {
 	return m_size;
@@ -699,5 +709,12 @@ void BufferWriter::AppendIntRange(IntRange const& intRangeToAdd) const
 {
 	AppendInt32(intRangeToAdd.m_min);
 	AppendInt32(intRangeToAdd.m_max);
+}
+
+void BufferWriter::AppendMat44(Mat44 const& matToAdd) const
+{
+	for (int floatInd = 0; floatInd < 16; floatInd++) {
+		AppendFloat(matToAdd.m_values[floatInd]);
+	}
 }
 

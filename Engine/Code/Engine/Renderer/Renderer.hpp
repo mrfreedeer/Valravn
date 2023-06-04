@@ -65,6 +65,7 @@ enum class SamplerMode
 	POINTWRAP,
 	BILINEARCLAMP,
 	BILINEARWRAP,
+	SHADOWMAPS,
 };
 
 enum class TopologyMode {// Transformed directly to DX11 (if standard changes, unexpected behavior might result) check when changing to > DX11
@@ -205,6 +206,7 @@ public:
 
 	void ClearScreen(const Rgba8& clearColor);
 	void ClearDepth(float value = 1.0f) const;
+	void ClearShadowSampler();
 	void ClearDepthTexture(Texture* depthTexture, float value = 1.0f) const;
 	void BeginCamera(const Camera& camera);
 	void BeginDepthOnlyCamera(Camera const& lightCamera);
@@ -228,6 +230,7 @@ public:
 
 	Texture* GetTextureForFileName(char const* imageFilePath);
 	Texture* CreateOrGetTextureFromFile(char const* imageFilePath);
+	Texture* CreateOrGetCubemapFromFile(char const* cubemapFilePath);
 	Texture* CreateTextureFromData(char const* name, IntVec2 dimensions, int bytesPerTexel, uint8_t* texelData);
 	void BindTexture(Texture const* texture, uint32_t idx = 0, ShaderBindBit bindFlags = SHADER_BIND_PIXEL_SHADER, bool canUseTextureMSDims = true);
 
@@ -260,15 +263,17 @@ public:
 	void BindVertexBuffer(VertexBuffer* vbo, unsigned int sizeOfVertex, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
 	void BindIndexBuffer(IndexBuffer* ibo) const;
 	void BindSSAOKernels(int slot) const;
+	void BindSamplerState();
 
 	void DrawVertexBuffer(VertexBuffer* vbo, int vertexCount, int vertexOffset = 0, unsigned int sizeOfVertex = sizeof(Vertex_PCU), TopologyMode topology = TopologyMode::TRIANGLELIST) const;
 	void DrawIndexedVertexBuffer(VertexBuffer* vbo, int vertexOffset, IndexBuffer* ibo, int indexCount, int indexOffset, unsigned int sizeOfVertex = sizeof(Vertex_PCU), TopologyMode topology = TopologyMode::TRIANGLELIST) const;
 
 	void SetModelMatrix(Mat44 const& modelMat);
 	void SetModelColor(Rgba8 const& modelColor);
-	void SetRasterizerState(CullMode cullMode, FillMode fillMode, WindingOrder windingOrder);
+	void SetRasterizerState(CullMode cullMode, FillMode fillMode, WindingOrder windingOrder, int depthBias = 0, float depthBiasClamp = 0.0f, float slopeScaledDepthBias = 0.0f );
 	void SetDepthStencilState(DepthTest depthTest, bool writeDepth);
 	void SetSamplerMode(SamplerMode samplerMode);
+	void SetShadowsSamplerMode(SamplerMode samplerMode);
 	void SetDirectionalLight(Vec3 const& direction);
 	void SetDirectionalLightIntensity(Rgba8 const& intensity);
 	void SetAmbientIntensity(Rgba8 const& intensity);
@@ -286,6 +291,7 @@ public:
 
 
 	Texture* CreateTexture(TextureCreateInfo const& createInfo);
+	Texture* CreateCubemap(std::vector<Image> const& images);
 	Texture* GetCurrentColorTarget() const;
 	Texture* GetCurrentDepthTarget() const;
 	void SetColorTarget(Texture* dst);
@@ -311,12 +317,13 @@ public:
 
 private:
 	Texture* CreateTextureFromImage(Image const& image);
+	Texture* CreateCubemapFromImages(std::vector<Image> const& images);
 	Texture* CreateTextureFromFile(char const* imageFilePath);
+	Texture* CreateCubemapFromFile(char const* imageFilePath);
 	BitmapFont* CreateBitmapFont(char const* filePath);
 	void CreateDeviceAndSwapChain();
 	void CreateRenderTargetView();
 	void CreateViewportAndRasterizerState();
-	void BindSamplerState();
 	void CreateDepthStencil();
 	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, ID3D11InputLayout** pInputLayout);
 
@@ -353,6 +360,7 @@ protected:
 	ID3D11RasterizerState* m_rasterizerState = nullptr;
 	ID3D11BlendState* m_blendState = nullptr;
 	ID3D11SamplerState* m_samplerState = nullptr;
+	ID3D11SamplerState* m_shadowMapSamplerState = nullptr;
 	ID3D11DepthStencilState* m_depthStencilState = nullptr;
 
 	Texture* m_depthBuffer = nullptr;

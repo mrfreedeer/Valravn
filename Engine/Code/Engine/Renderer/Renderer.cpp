@@ -148,7 +148,7 @@ void Renderer::EndFrame()
 	DebugRenderEndFrame();
 
 	if (m_isAntialiasingEnabled) {
-			m_deviceContext->ResolveSubresource(m_renderTarget->m_texture, 0, m_backBuffers[m_activeBackBuffer]->m_texture, 0, LocalToD3D11ColorFormat(m_renderTarget->m_format));
+		m_deviceContext->ResolveSubresource(m_renderTarget->m_texture, 0, m_backBuffers[m_activeBackBuffer]->m_texture, 0, LocalToD3D11ColorFormat(m_renderTarget->m_format));
 	}
 	else {
 		CopyTexture(m_renderTarget, m_backBuffers[m_activeBackBuffer]);
@@ -156,6 +156,7 @@ void Renderer::EndFrame()
 
 	if (m_rebuildAATexturesNextFrame || (m_isAntialiasingEnabledNextFrame != m_isAntialiasingEnabled)) {
 		m_isAntialiasingEnabled = m_isAntialiasingEnabledNextFrame;
+		m_rebuildAATexturesNextFrame = false;
 		CreateRenderTargetView();
 		CreateDepthStencil();
 	}
@@ -192,6 +193,7 @@ void Renderer::Shutdown()
 	DX_SAFE_RELEASE(m_rasterizerState);
 	DX_SAFE_RELEASE(m_blendState);
 	DX_SAFE_RELEASE(m_samplerState);
+	DX_SAFE_RELEASE(m_shadowMapSamplerState);
 	DX_SAFE_RELEASE(m_depthStencilState);
 
 	delete m_immediateVBO;
@@ -379,20 +381,21 @@ void Renderer::BeginDepthOnlyCamera(Camera const& lightCamera)
 
 	CopyAndBindModelConstants();
 
+	IntVec2 const& depthTextureDims = lightCamera.GetDepthTarget()->GetDimensions();
 
-	float clientDimensionsX = static_cast<float>(m_config.m_window->GetClientDimensions().x);
-	float clientDimensionsY = static_cast<float>(m_config.m_window->GetClientDimensions().y);
+	float textureDimensionsX = static_cast<float>(depthTextureDims.x);
+	float textureDimensionsY = static_cast<float>(depthTextureDims.y);
 
 	Vec2 cameraBoundSize = lightCamera.GetViewport().GetDimensions();
 
-	AABB2 viewportBounds = AABB2(0.0f, 0.0f, clientDimensionsX, clientDimensionsY).GetBoxWithin(lightCamera.GetViewport());
+	AABB2 viewportBounds = AABB2(0.0f, 0.0f, textureDimensionsX, textureDimensionsY).GetBoxWithin(lightCamera.GetViewport());
 
-	float cameraWidth = clientDimensionsX * cameraBoundSize.x;
-	float cameraHeight = clientDimensionsY * cameraBoundSize.y;
+	float cameraWidth = textureDimensionsX * cameraBoundSize.x;
+	float cameraHeight = textureDimensionsY * cameraBoundSize.y;
 
 	D3D11_VIEWPORT viewport{
 		viewportBounds.m_mins.x,
-		clientDimensionsY - viewportBounds.m_maxs.y,
+		textureDimensionsY - viewportBounds.m_maxs.y,
 		cameraWidth,
 		cameraHeight,
 		0,
@@ -546,6 +549,19 @@ Texture* Renderer::CreateOrGetTextureFromFile(char const* imageFilePath)
 	return newTexture;
 }
 
+
+Texture* Renderer::CreateOrGetCubemapFromFile(char const* cubemapFilePath)
+{
+	Texture* existingTexture = GetTextureForFileName(cubemapFilePath);
+	if (existingTexture)
+	{
+		return existingTexture;
+	}
+
+	// Never seen this texture before!  Let's load it.
+	Texture* newTexture = CreateCubemapFromFile(cubemapFilePath);
+	return newTexture;
+}
 
 Shader* Renderer::CreateOrGetShader(std::filesystem::path shaderName)
 {
@@ -1066,6 +1082,17 @@ Texture* Renderer::CreateTextureFromImage(Image const& image)
 	return newTexture;
 }
 
+Texture* Renderer::CreateCubemapFromImages(std::vector<Image> const& images)
+{
+
+	Texture* newTexture = CreateCubemap(images);
+	SetDebugName(newTexture->m_texture, newTexture->m_name.c_str());
+
+	m_loadedTextures.push_back(newTexture);
+
+	return newTexture;
+}
+
 void Renderer::SetDepthStencilState(DepthTest depthTest, bool writeDepth)
 {
 	DX_SAFE_RELEASE(m_depthStencilState);
@@ -1109,6 +1136,26 @@ Texture* Renderer::CreateTextureFromFile(char const* imageFilePath)
 	return newTexture;
 }
 
+Texture* Renderer::CreateCubemapFromFile(char const* imageFilePath)
+{
+	std::filesystem::path generalCubePath(imageFilePath);
+	std::string extenstion = generalCubePath.extension().string();
+	std::string baseFileName = generalCubePath.replace_extension("").string();
+
+	std::vector<Image> cubeFaces;
+	for (int cubeFaceInd = 0; cubeFaceInd < 6; cubeFaceInd++) {
+
+		std::string facePath = baseFileName;
+		facePath += Stringf("%d", cubeFaceInd);
+		facePath += extenstion;
+		cubeFaces.emplace_back(facePath.c_str());
+	}
+
+ 	Texture* newCubeMap = CreateCubemapFromImages(cubeFaces);
+	return newCubeMap;
+
+}
+
 void Renderer::CreateDepthStencil()
 {
 	Window* window = Window::GetWindowContext();
@@ -1141,6 +1188,11 @@ void Renderer::ClearDepth(float value) const
 	if (dsv) {
 		m_deviceContext->ClearDepthStencilView(dsv->m_depthStencilView, D3D11_CLEAR_DEPTH, value, 0);
 	}
+}
+
+void Renderer::ClearShadowSampler()
+{
+	DX_SAFE_RELEASE(m_shadowMapSamplerState);
 }
 
 void Renderer::ClearDepthTexture(Texture* depthTexture, float value /*= 1.0f*/) const
@@ -1524,34 +1576,113 @@ void Renderer::SetSamplerMode(SamplerMode samplerMode)
 		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
 		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
 		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+
 		break;
 	case SamplerMode::POINTWRAP:
 		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
 		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
 		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+
 		break;
 	case SamplerMode::BILINEARCLAMP:
 		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
 		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
 		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+
 		break;
 	case SamplerMode::BILINEARWRAP:
 		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
 		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+		break;
+
+	case SamplerMode::SHADOWMAPS:
+		samplerDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+		samplerDesc.BorderColor[0] = 0.0f;
+		samplerDesc.BorderColor[1] = 0.0f;
+		samplerDesc.BorderColor[2] = 0.0f;
+		samplerDesc.BorderColor[3] = 0.0f;
+
 		break;
 	default:
 		break;
 	}
-	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
 
 	HRESULT samplerStateCreationResult = m_device->CreateSamplerState(&samplerDesc, &m_samplerState);
 	if (!SUCCEEDED(samplerStateCreationResult)) {
 		ERROR_AND_DIE("ERROR CREATING SAMPLER STATE");
+	}
+}
+
+void Renderer::SetShadowsSamplerMode(SamplerMode samplerMode)
+{
+	DX_SAFE_RELEASE(m_shadowMapSamplerState);
+	D3D11_SAMPLER_DESC samplerDesc = {};
+	switch (samplerMode)
+	{
+	case SamplerMode::POINTCLAMP:
+		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+
+		break;
+	case SamplerMode::POINTWRAP:
+		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+
+		break;
+	case SamplerMode::BILINEARCLAMP:
+		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+
+		break;
+	case SamplerMode::BILINEARWRAP:
+		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+		break;
+	case SamplerMode::SHADOWMAPS:
+		samplerDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+		samplerDesc.BorderColor[0] = 0.0f;
+		samplerDesc.BorderColor[1] = 0.0f;
+		samplerDesc.BorderColor[2] = 0.0f;
+		samplerDesc.BorderColor[3] = 0.0f;
+
+		break;
+	default:
+		break;
+	}
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	HRESULT samplerStateCreationResult = m_device->CreateSamplerState(&samplerDesc, &m_shadowMapSamplerState);
+	if (!SUCCEEDED(samplerStateCreationResult)) {
+		ERROR_AND_DIE("ERROR CREATING SHADOWS SAMPLER STATE");
 	}
 }
 
@@ -1604,6 +1735,51 @@ Texture* Renderer::CreateTexture(TextureCreateInfo const& createInfo)
 	return tex;
 }
 
+Texture* Renderer::CreateCubemap(std::vector<Image> const& images)
+{
+	Image const& firstImage = images[0];
+
+	D3D11_TEXTURE2D_DESC pTextureDesc = { 0 };
+	pTextureDesc.Width = firstImage.GetDimensions().x;
+	pTextureDesc.Height = firstImage.GetDimensions().y;
+	pTextureDesc.MipLevels = 1;
+	pTextureDesc.ArraySize = 6;
+	pTextureDesc.Format = LocalToD3D11(TextureFormat::R8G8B8A8_UNORM);
+	pTextureDesc.SampleDesc.Count = 1;
+	pTextureDesc.Usage = LocalToD3D11(MemoryUsage::GPU);
+	pTextureDesc.BindFlags = LocalToD3D11BindFlags(TextureBindFlagBit::TEXTURE_BIND_SHADER_RESOURCE_BIT);
+	pTextureDesc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+
+
+	D3D11_SUBRESOURCE_DATA pIntialData[6];
+	for (int cubeFaceInd = 0; cubeFaceInd < 6; cubeFaceInd++) {
+		pIntialData[cubeFaceInd].pSysMem = images[cubeFaceInd].GetRawData();
+		pIntialData[cubeFaceInd].SysMemPitch = ((UINT)images[cubeFaceInd].GetSizeBytes() / (UINT)images[cubeFaceInd].GetDimensions().y);
+		pIntialData[cubeFaceInd].SysMemSlicePitch = 0;
+	}
+
+	ID3D11Texture2D* cubeTexture = nullptr;
+	HRESULT textureResult = m_device->CreateTexture2D(&pTextureDesc, pIntialData, &cubeTexture);
+	if (!SUCCEEDED(textureResult))
+	{
+		std::string errorString = "Error while creating Cubemap texture: ";
+		errorString.append(firstImage.GetImageFilePath());
+		ERROR_AND_DIE(errorString);
+	}
+
+
+	Texture* tex = new Texture(TextureFormat::R8G8B8A8_UNORM);
+	tex->m_owner = this;
+	tex->m_name = firstImage.GetImageFilePath();
+	tex->m_dimensions = firstImage.GetDimensions();
+	tex->m_texture = cubeTexture;
+	tex->m_allowedBinds = TextureBindFlagBit::TEXTURE_BIND_SHADER_RESOURCE_BIT;
+	tex->m_isCubeMap = true;
+
+	return tex;
+}
+
 void Renderer::DestroyTexture(Texture* texture)
 {
 	if (texture != nullptr) {
@@ -1631,14 +1807,14 @@ void Renderer::SetAntiAliasing(bool isEnabled, unsigned int aaLevel /*= 1*/)
 
 Texture* Renderer::GetCurrentColorTarget() const
 {
-	if(!m_camera) GetActiveColorTarget();
+	if (!m_camera) GetActiveColorTarget();
 	Texture* cameraColorTarget = m_camera->GetColorTarget();
 	return  (cameraColorTarget) ? cameraColorTarget : GetActiveColorTarget();
 }
 
 Texture* Renderer::GetCurrentDepthTarget() const
 {
-	if(!m_camera) return m_depthBuffer;
+	if (!m_camera) return m_depthBuffer;
 	Texture* cameraDepthTarget = m_camera->GetDepthTarget();
 	return  (cameraDepthTarget) ? cameraDepthTarget : m_depthBuffer;
 }
@@ -1814,7 +1990,8 @@ void Renderer::SetSampleSize(int newSampleSize)
 
 void Renderer::BindSamplerState()
 {
-	m_deviceContext->PSSetSamplers(0, 1, &m_samplerState);
+	ID3D11SamplerState* samplers[] = { m_samplerState, m_shadowMapSamplerState };
+	m_deviceContext->PSSetSamplers(0, 2, samplers);
 }
 
 void Renderer::EnableDetailedD11Logging()
@@ -1847,7 +2024,7 @@ void Renderer::SetDebugName(ID3D11DeviceChild* object, char const* name)
 #endif
 }
 
-void Renderer::SetRasterizerState(CullMode cullMode, FillMode fillMode, WindingOrder windingOrder)
+void Renderer::SetRasterizerState(CullMode cullMode, FillMode fillMode, WindingOrder windingOrder, int depthBias, float depthBiasClamp, float slopeScaledDepthBias)
 {
 	DX_SAFE_RELEASE(m_rasterizerState);
 	D3D11_RASTERIZER_DESC rasterizerStruct = {};
@@ -1861,12 +2038,14 @@ void Renderer::SetRasterizerState(CullMode cullMode, FillMode fillMode, WindingO
 	else if (cullMode == CullMode::BACK) {
 		rasterizerCullMode = D3D11_CULL_BACK;
 	}
-
 	rasterizerStruct.FillMode = rasterizerFillMode;
 	rasterizerStruct.CullMode = rasterizerCullMode;
 	rasterizerStruct.FrontCounterClockwise = (windingOrder == WindingOrder::COUNTERCLOCKWISE);
 	rasterizerStruct.DepthClipEnable = true;
 	rasterizerStruct.AntialiasedLineEnable = true;
+	rasterizerStruct.DepthBias = depthBias;
+	rasterizerStruct.DepthBiasClamp = depthBiasClamp;
+	rasterizerStruct.SlopeScaledDepthBias = slopeScaledDepthBias;
 	if (m_isAntialiasingEnabled) {
 		rasterizerStruct.MultisampleEnable = true;
 

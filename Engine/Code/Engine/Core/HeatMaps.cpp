@@ -49,26 +49,35 @@ IntVec2 TileHeatMap::GetCoordsForNextLowestValue(IntVec2 const& coords) const
 {
 	IntVec2 stepNorth = coords + IntVec2(0, 1);
 	IntVec2 stepSouth = coords + IntVec2(0, -1);
-	IntVec2 stepEast = coords + IntVec2(-1, 0 );
-	IntVec2 stepWest = coords + IntVec2(1, 0);
+	IntVec2 stepEast = coords + IntVec2(1, 0);
+	IntVec2 stepWest = coords + IntVec2(-1, 0 );
+
+	float currValue = GetValue(coords);
+
+	float lowestValue = currValue;
 
 	float valueNorth = GetValue(stepNorth);
 	float valueSouth = GetValue(stepSouth);
 	float valueEast = GetValue(stepEast);
 	float valueWest = GetValue(stepWest);
 
-	float currValue = GetValue(coords);
+	if(valueNorth < lowestValue) lowestValue = valueNorth; 
+	if(valueSouth < lowestValue) lowestValue = valueSouth;
+	if(valueEast < lowestValue) lowestValue = valueEast;
+	if(valueWest < lowestValue) lowestValue = valueWest;
 	
-	if (valueNorth <= currValue) {
+	
+
+	if (valueNorth == lowestValue) {
 		return stepNorth;
 	}
-	if (valueSouth <= currValue) {
+	if (valueSouth == lowestValue) {
 		return stepSouth;
 	}
-	if (valueEast <= currValue) {
+	if (valueEast == lowestValue) {
 		return stepEast;
 	}
-	if (valueWest <= currValue) {
+	if (valueWest == lowestValue) {
 		return stepWest;
 	}
 
@@ -127,7 +136,7 @@ IntVec2 TileHeatMap::GetRandomValue(float valueLowerThanExclusive) const
 	for (int valueIndex = 0; valueIndex < m_values.size(); valueIndex++) {
 		if (m_values[valueIndex] < valueLowerThanExclusive) {
 			possibleCandidates++;
-			chanceToSwitch = 1 / static_cast<float>(possibleCandidates);
+			chanceToSwitch = 1.0f / static_cast<float>(possibleCandidates);
 			float randNum = randNumGen.GetRandomFloatInRange(0.0f, 1.0f);
 			if (randNum < chanceToSwitch) {
 				chosenCandidate = IntVec2(valueIndex % m_dimensions.x, valueIndex / m_dimensions.x);

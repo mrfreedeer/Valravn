@@ -246,7 +246,6 @@ unsigned char DenormalizeByte(float zeroToOne)
 	return static_cast<unsigned char>(zeroToOne * 256.0f);
 }
 
-
 float GetShortestAngularDispDegrees(float fromDeg, float toDeg)
 {
 	float angDispDeg = toDeg - fromDeg;

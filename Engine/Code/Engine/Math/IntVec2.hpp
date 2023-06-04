@@ -1,4 +1,6 @@
 #pragma once
+struct Vec2;
+
 struct IntVec2 {
 	int x;
 	int y;
@@ -9,6 +11,7 @@ public:
 	IntVec2() = default;
 	explicit IntVec2(int x, int y);
 	IntVec2(const IntVec2& copyFrom) = default;
+	IntVec2(const Vec2& copyFrom);
 	
 
 	// Mutators
@@ -35,6 +38,7 @@ public:
 	IntVec2 const operator-(IntVec2 const& vecToSubtract) const;
 	IntVec2 const operator+(IntVec2 const& vecToSubtract) const;
 	IntVec2 const operator*(int scale) const;
+	IntVec2 const operator/(int scale) const;
 	bool operator==(IntVec2 const& compareTo) const;
 	bool operator!=(IntVec2 const& compareTo) const;
 

@@ -304,6 +304,9 @@
     <ClCompile Include="Core\NamedProperties.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="Math\Sampling.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Math\Vec2.hpp">
@@ -605,6 +608,9 @@
     </ClInclude>
     <ClInclude Include="Core\NamedProperties.hpp">
       <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Sampling.hpp">
+      <Filter>Math</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

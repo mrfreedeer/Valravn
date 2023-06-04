@@ -11,6 +11,7 @@ class TextureView;
 enum class TextureFormat : int {
 		R8G8B8A8_UNORM,
 		R32G32B32A32_FLOAT,
+		R32G32_FLOAT,
 		D24_UNORM_S8_UINT,
 		R24G8_TYPELESS,
 		R32_FLOAT
@@ -41,10 +42,12 @@ struct TextureCreateInfo {
 
 struct TextureViewInfo {
 	TextureBindFlag m_type;
+	bool m_isMultiSampled = false;
+	bool m_isCubeMap = false;
+
 	inline bool operator==(TextureViewInfo const& other) const {
 		return m_type == other.m_type;
 	}
-	bool m_isMultiSampled = false;
 };
 
 class Texture
@@ -76,5 +79,6 @@ protected:
 
 	Renderer* m_owner = nullptr;
 	TextureFormat m_format = TextureFormat::R8G8B8A8_UNORM;
+	bool m_isCubeMap = false;
 };
 

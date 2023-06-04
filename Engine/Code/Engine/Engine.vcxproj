@@ -394,6 +394,7 @@
     <ClCompile Include="Math\Plane3D.cpp" />
     <ClCompile Include="Math\RandomNumberGenerator.cpp" />
     <ClCompile Include="Math\RaycastUtils.cpp" />
+    <ClCompile Include="Math\Sampling.cpp" />
     <ClCompile Include="Math\Vec2.cpp" />
     <ClCompile Include="Math\Vec3.cpp" />
     <ClCompile Include="Math\Vec4.cpp" />
@@ -494,6 +495,7 @@
     <ClInclude Include="Math\Plane3D.hpp" />
     <ClInclude Include="Math\RandomNumberGenerator.hpp" />
     <ClInclude Include="Math\RaycastUtils.hpp" />
+    <ClInclude Include="Math\Sampling.hpp" />
     <ClInclude Include="Math\Vec2.hpp" />
     <ClInclude Include="Math\Vec3.hpp" />
     <ClInclude Include="Math\Vec4.hpp" />

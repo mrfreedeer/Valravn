@@ -12,6 +12,7 @@ public:
 	void SetValue(int index, float newValue);
 	void SetValue(IntVec2 const& coords, float newValue);
 	void AddValue(float newValue);
+	IntVec2 GetDimensions() const { return m_dimensions; }
 
 	IntVec2 GetCoordsForNextLowestValue(IntVec2 const& coords) const;
 	IntVec2 GetCoordsForNextHighestValue(IntVec2 const& coords) const;

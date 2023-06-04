@@ -24,6 +24,7 @@ struct EulerAngles;
 struct FloatRange;
 struct IntRange;
 struct OBB2;
+struct Mat44;
 
 BufferEndianness GetNativeEndianness();
 class BufferParser {
@@ -60,7 +61,7 @@ public:
 	EulerAngles ParseEulerAngles();
 	FloatRange ParseFloatRange();
 	IntRange ParseIntRange();
-
+	Mat44 ParseMat44();
 
 	size_t GetTotalSize() const;
 	size_t GetRemainingSize() const;
@@ -112,7 +113,7 @@ public:
 	void AppendEulerAngles(EulerAngles const& eulerAnglesToAdd) const;
 	void AppendFloatRange(FloatRange const& floatRangeToAdd) const;
 	void AppendIntRange(IntRange const& intRangeToAdd) const;
-
+	void AppendMat44(Mat44 const& matToAdd) const;
 private:
 	void Append4Bytes(unsigned char* bytesToAdd) const;
 
