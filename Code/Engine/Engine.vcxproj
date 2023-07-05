@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\..\Protogame3D\packages\Microsoft.Direct3D.D3D12.1.610.4\build\native\Microsoft.Direct3D.D3D12.props" Condition="Exists('..\..\..\Protogame3D\packages\Microsoft.Direct3D.D3D12.1.610.4\build\native\Microsoft.Direct3D.D3D12.props')" />
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="DebugInline|Win32">
       <Configuration>DebugInline</Configuration>
@@ -40,6 +41,30 @@
     <ProjectGuid>{1642dc84-dc5c-48e5-8352-3859b438eac2}</ProjectGuid>
     <RootNamespace>Engine</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Microsoft_Direct3D_D3D12_D3D12SDKPath>$(SolutionDir)../Engine/Code/Engine/Renderer/D3D12</Microsoft_Direct3D_D3D12_D3D12SDKPath>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals" Condition="'$(Configuration)|$(Platform)'=='DebugInline|Win32'">
+    <Microsoft_Direct3D_D3D12_D3D12SDKPath>$(SolutionDir)../Engine/Code/Engine/Renderer/D3D12</Microsoft_Direct3D_D3D12_D3D12SDKPath>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals" Condition="'$(Configuration)|$(Platform)'=='FastBreak|Win32'">
+    <Microsoft_Direct3D_D3D12_D3D12SDKPath>$(SolutionDir)../Engine/Code/Engine/Renderer/D3D12</Microsoft_Direct3D_D3D12_D3D12SDKPath>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Microsoft_Direct3D_D3D12_D3D12SDKPath>$(SolutionDir)../Engine/Code/Engine/Renderer/D3D12</Microsoft_Direct3D_D3D12_D3D12SDKPath>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Microsoft_Direct3D_D3D12_D3D12SDKPath>$(SolutionDir)../Engine/Code/Engine/Renderer/D3D12</Microsoft_Direct3D_D3D12_D3D12SDKPath>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals" Condition="'$(Configuration)|$(Platform)'=='DebugInline|x64'">
+    <Microsoft_Direct3D_D3D12_D3D12SDKPath>$(SolutionDir)../Engine/Code/Engine/Renderer/D3D12</Microsoft_Direct3D_D3D12_D3D12SDKPath>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals" Condition="'$(Configuration)|$(Platform)'=='FastBreak|x64'">
+    <Microsoft_Direct3D_D3D12_D3D12SDKPath>$(SolutionDir)../Engine/Code/Engine/Renderer/D3D12</Microsoft_Direct3D_D3D12_D3D12SDKPath>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Microsoft_Direct3D_D3D12_D3D12SDKPath>$(SolutionDir)../Engine/Code/Engine/Renderer/D3D12</Microsoft_Direct3D_D3D12_D3D12SDKPath>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -530,7 +555,18 @@
     <ClInclude Include="Renderer\VertexBuffer.hpp" />
     <ClInclude Include="Window\Window.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\..\..\Protogame3D\packages\Microsoft.Direct3D.D3D12.1.610.4\build\native\Microsoft.Direct3D.D3D12.targets" Condition="Exists('..\..\..\Protogame3D\packages\Microsoft.Direct3D.D3D12.1.610.4\build\native\Microsoft.Direct3D.D3D12.targets')" />
   </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\..\..\Protogame3D\packages\Microsoft.Direct3D.D3D12.1.610.4\build\native\Microsoft.Direct3D.D3D12.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\Protogame3D\packages\Microsoft.Direct3D.D3D12.1.610.4\build\native\Microsoft.Direct3D.D3D12.props'))" />
+    <Error Condition="!Exists('..\..\..\Protogame3D\packages\Microsoft.Direct3D.D3D12.1.610.4\build\native\Microsoft.Direct3D.D3D12.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\Protogame3D\packages\Microsoft.Direct3D.D3D12.1.610.4\build\native\Microsoft.Direct3D.D3D12.targets'))" />
+  </Target>
 </Project>

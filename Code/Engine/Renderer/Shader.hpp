@@ -31,12 +31,6 @@ public:
 	const std::string& GetName() const;
 
 	ShaderConfig		m_config;
-	ID3D11InputLayout* m_inputLayout = nullptr;
-	ID3D11VertexShader* m_vertexShader = nullptr;
-	ID3D11PixelShader* m_pixelShader = nullptr;
-	ID3D11PixelShader* m_MSAAPixelShader = nullptr;
-	ID3D11GeometryShader* m_geometryShader = nullptr;
-	ID3D11HullShader* m_hullShader = nullptr;
-	ID3D11DomainShader* m_domainShader = nullptr;
-	ID3D11ComputeShader* m_computeShader = nullptr;
+	ID3D12Resource* m_vertexShader = nullptr;
+	ID3D12Resource* m_pixelShader = nullptr;
 };

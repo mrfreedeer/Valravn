@@ -6,6 +6,16 @@
 #include <filesystem>
 #include <cstdint>
 #include <vector>
+#include <wrl.h>
+#include <d3dx12.h>
+#include <d3d12.h>
+#include <dxgi1_6.h>
+#include <d3dcompiler.h>
+
+#pragma comment (lib, "d3d12.lib")
+#pragma comment (lib, "dxgi1_6.lib")
+#pragma comment (lib, "d3dcompiler.lib")
+#pragma comment (lib, "dxguid.lib")
 
 #pragma once
 
@@ -20,6 +30,8 @@
 
 #undef OPAQUE
 
+template <typename T> 
+using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 enum class BlendMode
 {
@@ -68,7 +80,7 @@ enum class SamplerMode
 	SHADOWMAPS,
 };
 
-enum class TopologyMode {// Transformed directly to DX11 (if standard changes, unexpected behavior might result) check when changing to > DX11
+enum class TopologyMode {// Transformed directly to DX12 (if standard changes, unexpected behavior might result) check when changing to > DX12
 	UNDEFINED,
 	POINTLIST,
 	LINELIST,
@@ -113,58 +125,15 @@ enum class TopologyMode {// Transformed directly to DX11 (if standard changes, u
 	CONTROL_POINT_PATCHLIST_32 = 64,
 };
 
-enum ShaderBindBit : unsigned int {
 
-	SHADER_BIND_NONE = 0,
-	SHADER_BIND_VERTEX_SHADER = (1 << 0),
-	SHADER_BIND_HULL_SHADER = (1 << 1),
-	SHADER_BIND_DOMAIN_SHADER = (1 << 2),
-	SHADER_BIND_GEOMETRY_SHADER = (1 << 3),
-	SHADER_BIND_PIXEL_SHADER = (1 << 4),
-	SHADER_BIND_COMPUTE_SHADER = (1 << 5),
-	SHADER_BIND_RENDERING_PIPELINE = 0b00011111
-};
 
 class Window;
 
 struct RendererConfig {
 	Window* m_window = nullptr;
+	unsigned int m_backBuffersCount = 2;
 };
 
-class Texture;
-class BitmapFont;
-class VertexBuffer;
-class StreamOutputBuffer;
-class UnorderedAccessBuffer;
-class ConstantBuffer;
-class IndexBuffer;
-class Image;
-
-struct IntVec2;
-struct Vec4;
-
-struct ID3D11ShaderReflection;
-struct ID3D11Device;
-struct ID3D11DeviceChild;
-struct ID3D11DeviceContext;
-struct IDXGISwapChain;
-struct ID3D11RenderTargetView;
-struct ID3D11RasterizerState;
-struct ID3D11BlendState;
-struct ID3D11SamplerState;
-struct ID3D11DepthStencilState;
-struct ID3D11DepthStencilView;
-struct ID3D11Texture2D;
-struct ID3D11Texture2D;
-struct ID3D11InputLayout;
-struct TextureCreateInfo;
-
-constexpr int g_modelBufferSlot = 3;
-struct ModelConstants {
-	Mat44 ModelMatrix;
-	float ModelColor[4];
-	float ModelPadding[4];
-};
 
 struct Light
 {
@@ -186,201 +155,90 @@ struct Light
 	Mat44 ProjectionMatrix;
 	//------------- 64 bytes
 };
-
-struct SODeclarationEntry {
-	std::string SemanticName = "";
-	unsigned int SemanticIndex = 0;
-	unsigned char StartComponent;
-	unsigned char ComponentCount;
-	unsigned char OutputSlot;
-};
+//
+//struct SODeclarationEntry {
+//	std::string SemanticName = "";
+//	unsigned int SemanticIndex = 0;
+//	unsigned char StartComponent;
+//	unsigned char ComponentCount;
+//	unsigned char OutputSlot;
+//};
 
 constexpr int MAX_LIGHTS = 8;
+
+typedef void* HANDLE;
+
+
+
 class Renderer {
 public:
 	Renderer(RendererConfig const& config);
-	void Startup(BlendMode blendMode = BlendMode::ALPHA);
+	void Startup();
 	void BeginFrame();
 	void EndFrame();
 	void Shutdown();
 
-	void ClearScreen(const Rgba8& clearColor);
-	void ClearDepth(float value = 1.0f) const;
-	void ClearShadowSampler();
-	void ClearDepthTexture(Texture* depthTexture, float value = 1.0f) const;
-	void BeginCamera(const Camera& camera);
-	void BeginDepthOnlyCamera(Camera const& lightCamera);
-	void EndCamera(const Camera& camera);
-
-	void DispatchCS(int threadX, int threadY, int threadZ);
-
-	// For when a Vertex Buffer is not needed
-	void Draw(int numVertexes, int startOffset, TopologyMode topology = TopologyMode::TRIANGLELIST);
-	void DrawVertexArray(int numVertexes, const Vertex_PCU* vertexes, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void DrawVertexArray(std::vector<Vertex_PCU> const& vertexes, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void DrawVertexArray(int numVertexes, const Vertex_PNCU* vertexes, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void DrawVertexArray(std::vector<Vertex_PNCU> const& vertexes, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void DrawIndexedVertexArray(int numVertexes, Vertex_PCU const* vertexes, int numIndices, unsigned int const* indices, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void DrawIndexedVertexArray(std::vector<Vertex_PCU> const& vertexes, std::vector<unsigned int> const& indices, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void DrawIndexedVertexArray(int numVertexes, Vertex_PNCU const* vertexes, int numIndices, unsigned int const* indices, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void DrawIndexedVertexArray(std::vector<Vertex_PNCU> const& vertexes, std::vector<unsigned int> const& indices, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void ClearScreen(Rgba8& color);
-
-	void CreateRenderContext();
-
-	Texture* GetTextureForFileName(char const* imageFilePath);
-	Texture* CreateOrGetTextureFromFile(char const* imageFilePath);
-	Texture* CreateOrGetCubemapFromFile(char const* cubemapFilePath);
-	Texture* CreateTextureFromData(char const* name, IntVec2 dimensions, int bytesPerTexel, uint8_t* texelData);
-	void BindTexture(Texture const* texture, uint32_t idx = 0, ShaderBindBit bindFlags = SHADER_BIND_PIXEL_SHADER, bool canUseTextureMSDims = true);
-
-	BitmapFont* CreateOrGetBitmapFont(char const* filePath);
-
-	void SetBlendMode(BlendMode blendMode);
-
-
-	Shader* CreateCSOnlyShader(std::filesystem::path shaderName);
-	Shader* CreateShader(std::filesystem::path  shaderName, bool createWithStreamOutput = false, int numDeclarationEntries = 0, SODeclarationEntry* soEntries = nullptr);
-	Shader* CreateShader(char const* shaderName, char const* shaderSource, bool createWithStreamOutput = false, int numDeclarationEntries = 0, SODeclarationEntry* soEntries = nullptr);
+	void ClearScreen(Rgba8 const& color);
 	Shader* CreateOrGetShader(std::filesystem::path shaderName);
-	void BindShaderByName(char const* shaderName);
-	void BindShader(Shader* shader);
+
+private:
+
+	// DX12 Initialization
+	void EnableDebugLayer() const;
+	void CreateDXGIFactory();
+	ComPtr<IDXGIAdapter4> GetAdapter();
+	void CreateDevice(ComPtr<IDXGIAdapter4> adapter);
+	void CreateCommandQueue(D3D12_COMMAND_LIST_TYPE type);
+	bool HasTearingSupport();
+	void CreateSwapChain();
+	void CreateDescriptorHeap(ComPtr<ID3D12DescriptorHeap>& descriptorHeap, D3D12_DESCRIPTOR_HEAP_TYPE type, unsigned int numDescriptors);
+	void CreateRenderTargetViews();
+	void CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12CommandAllocator>& commandAllocator);
+	void CreateCommandList(D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12CommandAllocator> const& commandAllocator);
+	void CreateFence();
+	void CreateFenceEvent();
+	void CreateRootSignature();
+
+	// Fence signaling
+	unsigned int SignalFence(ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int& fenceValue);
+	void WaitForFenceValue(ComPtr<ID3D12Fence1> fence, unsigned int fenceValue, HANDLE fenceEvent);
+	void Flush(ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int* fenceValues, HANDLE fenceEvent);
+
+	ComPtr<ID3D12Resource2> GetActiveColorTarget() const;
+	ComPtr<ID3D12Resource2> GetBackUpColorTarget() const;
+
+
+	// Shaders
+	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, D3D12_INPUT_LAYOUT_DESC& pInputLayout, std::vector<D3D12_INPUT_ELEMENT_DESC>& elementsDescs);
+	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* name, char const* source, char const* entryPoint, char const* target, bool isAntialiasingOn);
+	Shader* CreateShader(std::filesystem::path shaderName);
+	Shader* CreateShader(char const* shaderName, char const* shaderSource);
 	Shader* GetShaderForName(char const* shaderName);
-	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* name, char const* source, char const* entryPoint, char const* target, bool isAntialiasingOn = false);
 
-	void CopyAndBindModelConstants() const;
-	void CopyAndBindLightConstants() const;
-
-	void CopyCPUToGPU(const void* data, size_t sizeInBytes, VertexBuffer* vbo) const;
-	void CopyCPUToGPU(const void* data, size_t sizeInBytes, ConstantBuffer* cbo) const;
-	void CopyCPUToGPU(const void* data, size_t sizeInBytes, IndexBuffer* ibo) const;
-
-	void CopyTextureWithShader(Texture* dst, Texture* src, Texture* depthBuffer, Shader* effect, Camera const* camera = nullptr);
-	void DownsampleTextureWithShader(Texture* dst, Texture* src, Shader* effect);
-	void ApplyEffect(Shader* effect, Camera const* camera = nullptr, Texture* customDepth = nullptr);
-
-	void BindConstantBuffer(int slot, ConstantBuffer* cbo) const;
-	void BindVertexBuffer(VertexBuffer* vbo, unsigned int sizeOfVertex, TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void BindIndexBuffer(IndexBuffer* ibo) const;
-	void BindSSAOKernels(int slot) const;
-	void BindSamplerState();
-
-	void DrawVertexBuffer(VertexBuffer* vbo, int vertexCount, int vertexOffset = 0, unsigned int sizeOfVertex = sizeof(Vertex_PCU), TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-	void DrawIndexedVertexBuffer(VertexBuffer* vbo, int vertexOffset, IndexBuffer* ibo, int indexCount, int indexOffset, unsigned int sizeOfVertex = sizeof(Vertex_PCU), TopologyMode topology = TopologyMode::TRIANGLELIST) const;
-
-	void SetModelMatrix(Mat44 const& modelMat);
-	void SetModelColor(Rgba8 const& modelColor);
-	void SetRasterizerState(CullMode cullMode, FillMode fillMode, WindingOrder windingOrder, int depthBias = 0, float depthBiasClamp = 0.0f, float slopeScaledDepthBias = 0.0f );
-	void SetDepthStencilState(DepthTest depthTest, bool writeDepth);
-	void SetSamplerMode(SamplerMode samplerMode);
-	void SetShadowsSamplerMode(SamplerMode samplerMode);
-	void SetDirectionalLight(Vec3 const& direction);
-	void SetDirectionalLightIntensity(Rgba8 const& intensity);
-	void SetAmbientIntensity(Rgba8 const& intensity);
-
-	bool SetLight(Light const& light, int index);
-	void SetLightRenderMatrix(Mat44 gameToRenderMatrix) { m_lightRenderTransform = gameToRenderMatrix; }
-	void ClearLights();
-	bool IsAntialiasingOn() const { return m_isAntialiasingEnabled; }
-	int GetAntiaAliasingLevel() const { return m_antialiasingLevel; }
-	void CreateSSAOKernelsUAV(std::vector<Vec4> kernels);
-	void SetOcclusionPerSample(float occlusionPerSample);
-	void SetSSAOFalloff(float SSAOFalloff);
-	void SetSSAOSampleRadius(float sampleRadius);
-	void SetSampleSize(int newSampleSize);
-
-
-	Texture* CreateTexture(TextureCreateInfo const& createInfo);
-	Texture* CreateCubemap(std::vector<Image> const& images);
-	Texture* GetCurrentColorTarget() const;
-	Texture* GetCurrentDepthTarget() const;
-	void SetColorTarget(Texture* dst);
-	void SetStreamOutputTarget(StreamOutputBuffer* streamOutputBuffer);
-	void SetInputLayoutTopology(TopologyMode newTopology);
-	void SetShaderResource(UnorderedAccessBuffer* uav, int slot = 1, ShaderBindBit bindFlags = SHADER_BIND_RENDERING_PIPELINE) const;
-	void SetUAV(UnorderedAccessBuffer* uav, int slot = 0) const;
-	void ClearState();
-
-	Texture* GetActiveColorTarget() const;
-	Texture* GetBackupColorTarget() const;
-
-	void CopyTexture(Texture* dst, Texture* src);
-	void DestroyTexture(Texture* texture);
-
-	void ClearUAV(UnorderedAccessBuffer* uav, float fillValue);
-	void SetAntiAliasing(bool isEnabled, unsigned int aaLevel = 1);
-public:
-	Vec3 m_directionalLight = Vec3(0.0f, 0.0f, -1.0f);
-	Rgba8 m_directionalLightIntensity = Rgba8::WHITE;
-	Rgba8 m_ambientIntensity = Rgba8::WHITE;
-	ID3D11Device* m_device = nullptr;
-
-private:
-	Texture* CreateTextureFromImage(Image const& image);
-	Texture* CreateCubemapFromImages(std::vector<Image> const& images);
-	Texture* CreateTextureFromFile(char const* imageFilePath);
-	Texture* CreateCubemapFromFile(char const* imageFilePath);
-	BitmapFont* CreateBitmapFont(char const* filePath);
-	void CreateDeviceAndSwapChain();
-	void CreateRenderTargetView();
-	void CreateViewportAndRasterizerState();
-	void CreateDepthStencil();
-	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, ID3D11InputLayout** pInputLayout);
-
-	void EnableDetailedD11Logging();
-	void EnableDetailedD11Shutdown();
-	void SetDebugName(ID3D11DeviceChild* object, char const* name);
+	// General
+	void SetDebugName(ID3D12Object* object, char const* name);
 private:
 
-	RendererConfig m_config;
-	std::vector<Texture*> m_loadedTextures;
-	std::vector<BitmapFont*> m_loadedFonts;
-	Texture const* m_lastBoundTexture = nullptr;
 
-	std::vector<Shader*>		m_loadedShaders;
-	Shader const* m_currentShader = nullptr;
-	IndexBuffer* m_indexBuffer = nullptr;
-	VertexBuffer* m_immediateVBO = nullptr;
-	VertexBuffer* m_immediateVBO_PNCU = nullptr;
-	ConstantBuffer* m_cameraCBO = nullptr;
-	ConstantBuffer* m_modelCBO = nullptr;
-	ConstantBuffer* m_lightCBO = nullptr;
-	UnorderedAccessBuffer* m_SSAOKernels_UAV = nullptr;
+	RendererConfig m_config = {};
 
-	Shader* m_defaultShader = nullptr;
-	Texture* m_defaultTexture = nullptr;
-	ModelConstants m_modelConstants;
-	Light m_lights[MAX_LIGHTS];
+	ComPtr<ID3D12Device2> m_device;
+	ComPtr<ID3D12RootSignature> m_rootSignature;
+	ComPtr<ID3D12CommandQueue> m_commandQueue;
+	ComPtr<IDXGISwapChain4> m_swapChain;
+	std::vector<ComPtr<ID3D12Resource2>> m_backBuffers;
+	ComPtr<ID3D12GraphicsCommandList2> m_commandList;
+	std::vector<ComPtr<ID3D12CommandAllocator>> m_commandAllocators;
+	ComPtr<ID3D12DescriptorHeap> m_RTVdescriptorHeap;
+	ComPtr<ID3D12Fence1> m_fence;
+	ComPtr<IDXGIFactory4> m_dxgiFactory;
 
-	Camera const* m_camera = nullptr;
+	std::vector<Shader*> m_loadedShaders;
 
-protected:
-	ID3D11DeviceContext* m_deviceContext = nullptr;
-	IDXGISwapChain* m_swapChain = nullptr;
-	ID3D11RasterizerState* m_rasterizerState = nullptr;
-	ID3D11BlendState* m_blendState = nullptr;
-	ID3D11SamplerState* m_samplerState = nullptr;
-	ID3D11SamplerState* m_shadowMapSamplerState = nullptr;
-	ID3D11DepthStencilState* m_depthStencilState = nullptr;
-
-	Texture* m_depthBuffer = nullptr;
-	Texture* m_renderTarget = nullptr;
-	Texture* m_backBuffers[2] = {};
-
-	int m_activeBackBuffer = 0;
-
-	void* m_dxgiDebugModule = nullptr;
-	void* m_dxgiDebug = nullptr;
-
-	bool m_isAntialiasingEnabled = false;
-	unsigned int m_antialiasingLevel = 1;
-	bool m_isAntialiasingEnabledNextFrame = false;
-	bool m_rebuildAATexturesNextFrame = false;
-	bool m_appliedEffect = false;
-
-	float m_SSAOMaxOcclusionPerSample = 0.00000175f;
-	float m_SSAOFalloff = 0.00000001f;
-	float m_SSAOSampleRadius = 0.00001f;
-	int m_SSAOSampleSize = 64;
-	Mat44 m_lightRenderTransform = Mat44();
+	unsigned int m_currentBackBuffer = 0;
+	unsigned int* m_fenceValues = nullptr;
+	unsigned int m_RTVdescriptorSize = 0;
+	HANDLE m_fenceEvent;
+	bool m_useWARP = false;
+	unsigned int m_antiAliasingLevel = 0;
 };
