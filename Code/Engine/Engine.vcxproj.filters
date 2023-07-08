@@ -44,6 +44,9 @@
     <Filter Include="Renderer\D3D11">
       <UniqueIdentifier>{3be082df-efe1-44e6-8486-fd82c1eff92c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Renderer\D3D12">
+      <UniqueIdentifier>{4fa813ba-13b9-41a6-b9ff-25dac1f745a4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Math\Vec2.cpp">
@@ -611,6 +614,42 @@
     </ClInclude>
     <ClInclude Include="Math\Sampling.hpp">
       <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\GraphicsCommon.hpp">
+      <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_barriers.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_check_feature_support.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_core.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_default.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_pipeline_state_stream.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_property_format_table.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_render_pass.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_resource_helpers.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_root_signature.h">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\d3dx12_state_object.h">
+      <Filter>Renderer\D3D12</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

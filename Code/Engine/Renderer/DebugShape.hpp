@@ -1,3 +1,5 @@
+#pragma  once
+
 #include "Engine/Core/Vertex_PCU.hpp"
 #include "Engine/Core/Stopwatch.hpp"
 #include "Engine/Math/EulerAngles.hpp"
@@ -12,6 +14,7 @@ enum class ScrenTextType {
 
 class Renderer;
 class Camera;
+class Texture;
 struct Mat44;
 
 struct DebugShape {

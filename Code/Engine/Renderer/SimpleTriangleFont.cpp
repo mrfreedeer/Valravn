@@ -5,6 +5,7 @@
 #include "Engine/Core/Vertex_PCU.hpp"
 #include "Engine/Core/Rgba8.hpp"
 #include "Engine/Math/AABB2.hpp"
+#include "Engine/Core/EngineCommon.hpp"
 
 //------------------------------------------------------------------------------------------------
 // A simple utility file for creating basic 5x9 pixel fonts out of pure triangles, i.e. does not

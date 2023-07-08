@@ -2,6 +2,12 @@
 #include "Engine/Core/ErrorWarningAssert.hpp"
 #include "Engine/Window/Window.hpp"
 #include "Engine/Core/FileUtils.hpp"
+#include "Engine/Renderer/DefaultShader.hpp"
+#include "Engine/Core/Vertex_PCU.hpp"
+#include "Engine/Renderer/Shader.hpp"
+#include "d3dx12.h"
+
+#include "Engine/Renderer/GraphicsCommon.hpp"
 
 
 inline void ThrowIfFailed(HRESULT hr, char const* errorMsg) {
@@ -270,16 +276,14 @@ void Renderer::CreateFenceEvent()
 	m_fenceEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 }
 
-void Renderer::CreateRootSignature()
+void Renderer::CreateDefaultRootSignature()
 {
-
 	CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 	rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 	ComPtr<ID3DBlob> signature;
 	ComPtr<ID3DBlob> error;
 	ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error), "COULD NOT SERIALIZE ROOT SIGNATURE");
 	ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)), "COULD NOT CREATE ROOT SIGNATURE");
-
 }
 
 unsigned int Renderer::SignalFence(ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int& fenceValue)
@@ -332,6 +336,7 @@ void Renderer::Startup()
 {
 	// Enable Debug Layer before initializing any DX12 object
 	EnableDebugLayer();
+	CreateViewport();
 	CreateDXGIFactory();
 	ComPtr<IDXGIAdapter4> adapter = GetAdapter();
 	CreateDevice(adapter);
@@ -344,9 +349,56 @@ void Renderer::Startup()
 	for (int frameIndex = 0; frameIndex < m_config.m_backBuffersCount; frameIndex++) {
 		CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[frameIndex]);
 	}
+
+	CreateDefaultRootSignature();
+	m_defaultShader = CreateShader("Default", g_defaultShaderSource);
+
+	CreateCommandList(D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_currentBackBuffer]);
+	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
+
+
+	{
+		// Define the geometry for a triangle.
+		Vertex_PCU triangleVertices[] =
+		{
+			Vertex_PCU(Vec3(0.0f, 0.25f * 2.0f, 0.0f), Rgba8( 255, 0, 0, 255 ), Vec2(0.0f, 0.0f)),
+			Vertex_PCU(Vec3(0.25f, -0.25f * 2.0f, 0.0f), Rgba8(0, 255, 0, 255), Vec2::ZERO ),
+			Vertex_PCU(Vec3(-0.25f, -0.25f * 2.0f, 0.0f), Rgba8(0, 0, 255, 255), Vec2::ZERO)
+		};
+
+		const UINT vertexBufferSize = sizeof(triangleVertices);
+
+		// Note: using upload heaps to transfer static data like vert buffers is not 
+		// recommended. Every time the GPU needs it, the upload heap will be marshalled 
+		// over. Please read up on Default Heap usage. An upload heap is used here for 
+		// code simplicity and because there are very few verts to actually transfer.
+		CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		CD3DX12_RESOURCE_DESC resourceDesc =  CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
+		ThrowIfFailed(m_device->CreateCommittedResource(
+			&heapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&resourceDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&m_vertexBuffer)), "COULD NOT CREATE COMMITED VERTEX BUFFER RESOURCE");
+
+		// Copy the triangle data to the vertex buffer.
+		UINT8* pVertexDataBegin;
+		CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
+		ThrowIfFailed(m_vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin)), "COULD NOT MAP VERTEX BUFFER");
+		memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
+		m_vertexBuffer->Unmap(0, nullptr);
+
+		// Initialize the vertex buffer view.
+		m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
+		m_vertexBufferView.StrideInBytes = sizeof(Vertex_PCU);
+		m_vertexBufferView.SizeInBytes = vertexBufferSize;
+	}
+
+	CreateFence();
+	m_fenceValues[m_currentBackBuffer]++;
 	CreateFenceEvent();
 
-	CreateRootSignature();
 
 }
 
@@ -483,108 +535,36 @@ Shader* Renderer::CreateShader(char const* shaderName, char const* shaderSource)
 	std::string baseName = shaderName;
 	std::string debugName;
 
-	std::vector<uint8_t> vertexShaderByteCode;
-	CompileShaderToByteCode(vertexShaderByteCode, shaderName, shaderSource, config.m_vertexEntryPoint.c_str(), "vs_5_0", m_antiAliasingLevel);
-	CD3DX12_SHADER_BYTECODE(vertexShaderByteCode.data(), vertexShaderByteCode.size());
+	std::vector<uint8_t>& vertexShaderByteCode = newShader->m_VSByteCode;
+	CompileShaderToByteCode(vertexShaderByteCode, shaderName, shaderSource, config.m_vertexEntryPoint.c_str(), "vs_5_0", false);
 	
-
-	debugName = baseName + "|VShader";
-	SetDebugName(newShader->m_vertexShader, debugName.c_str());
-
 	std::string shaderNameAsString(shaderName);
 
-	CreateInputLayoutFromVS(vertexShaderByteCode, &newShader->m_inputLayout);
+	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> layoutElementsDesc;
+	CreateInputLayoutFromVS(vertexShaderByteCode, inputLayoutDesc, layoutElementsDesc);
 
+	std::vector<uint8_t>& pixelShaderByteCode = newShader->m_PSByteCode;
+	CompileShaderToByteCode(pixelShaderByteCode, shaderName, shaderSource, config.m_pixelEntryPoint.c_str(), "ps_5_0", false);
 
-	std::vector<uint8_t> pixelShaderByteCode;
-	CompileShaderToByteCode(pixelShaderByteCode, shaderName, shaderSource, config.m_pixelEntryPoint.c_str(), "ps_5_0");
-	m_device->CreatePixelShader(pixelShaderByteCode.data(), pixelShaderByteCode.size(), NULL, &newShader->m_pixelShader);
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+	psoDesc.InputLayout = { layoutElementsDesc.data(), (UINT)layoutElementsDesc.size() };
+	psoDesc.pRootSignature = m_rootSignature.Get();
+	psoDesc.VS = CD3DX12_SHADER_BYTECODE(newShader->m_VSByteCode.data(), newShader->m_VSByteCode.size());
+	psoDesc.PS = CD3DX12_SHADER_BYTECODE(newShader->m_PSByteCode.data(), newShader->m_PSByteCode.size());
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	psoDesc.DepthStencilState.DepthEnable = FALSE;
+	psoDesc.DepthStencilState.StencilEnable = FALSE;
+	psoDesc.SampleMask = UINT_MAX;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	psoDesc.SampleDesc.Count = 1;
 
-	debugName = baseName + "|PShader";
-	SetDebugName(newShader->m_pixelShader, debugName.c_str());
-
-	/*
-	* Pixel Shader is compiled twice to support toggling antialiasing on runtime
-	*/
-	pixelShaderByteCode.clear();
-	CompileShaderToByteCode(pixelShaderByteCode, shaderName, shaderSource, config.m_pixelEntryPoint.c_str(), "ps_5_0", true);
-	m_device->CreatePixelShader(pixelShaderByteCode.data(), pixelShaderByteCode.size(), NULL, &newShader->m_MSAAPixelShader);
-
-	debugName = baseName + "|MSAA-PShader";
-	SetDebugName(newShader->m_MSAAPixelShader, debugName.c_str());
-
-	std::vector<uint8_t> geometryShaderByteCode;
-
-	bool compiledGeometryShader = CompileShaderToByteCode(geometryShaderByteCode, shaderName, shaderSource, config.m_geometryEntryPoint.c_str(), "gs_5_0");
-
-	if (compiledGeometryShader) {
-		if (createWithStreamOutput) {
-
-			D3D11_SO_DECLARATION_ENTRY* DXSOEntries = new D3D11_SO_DECLARATION_ENTRY[numDeclarationEntries];
-			for (int entryInd = 0; entryInd < numDeclarationEntries; entryInd++) {
-				D3D11_SO_DECLARATION_ENTRY newEntry = {};
-				SODeclarationEntry const& currentEntry = soEntries[entryInd];
-
-				newEntry.Stream = 0;
-				newEntry.SemanticName = currentEntry.SemanticName.c_str();
-				newEntry.SemanticIndex = currentEntry.SemanticIndex;
-				newEntry.StartComponent = currentEntry.StartComponent;
-				newEntry.ComponentCount = currentEntry.ComponentCount;
-				newEntry.OutputSlot = currentEntry.OutputSlot;
-				DXSOEntries[entryInd] = newEntry;
-			}
-			if (DXSOEntries) {
-				m_device->CreateGeometryShaderWithStreamOutput(geometryShaderByteCode.data(), geometryShaderByteCode.size(), DXSOEntries, numDeclarationEntries, NULL, 0, 0, NULL, &newShader->m_geometryShader);
-			}
-			delete[] DXSOEntries;
-		}
-		else {
-			m_device->CreateGeometryShader(geometryShaderByteCode.data(), geometryShaderByteCode.size(), NULL, &newShader->m_geometryShader);
-		}
-		debugName = baseName;
-		debugName += "|GShader";
-
-		SetDebugName(newShader->m_geometryShader, debugName.c_str());
-	}
-
-
-	std::vector<uint8_t> hullShaderByteCode;
-
-	bool compiledHullShader = CompileShaderToByteCode(hullShaderByteCode, shaderName, shaderSource, config.m_hullShaderEntryPoint.c_str(), "hs_5_0");
-
-	if (compiledHullShader) {
-		m_device->CreateHullShader(hullShaderByteCode.data(), hullShaderByteCode.size(), NULL, &newShader->m_hullShader);
-		debugName = baseName;
-		debugName += "|HShader";
-
-		SetDebugName(newShader->m_hullShader, debugName.c_str());
-	}
-
-	std::vector<uint8_t> domainShaderByteCode;
-
-	bool compiledDomainShader = CompileShaderToByteCode(domainShaderByteCode, shaderName, shaderSource, config.m_domainShaderEntryPoint.c_str(), "ds_5_0");
-
-	if (compiledDomainShader) {
-		m_device->CreateDomainShader(domainShaderByteCode.data(), domainShaderByteCode.size(), NULL, &newShader->m_domainShader);
-		debugName = baseName;
-		debugName += "|DShader";
-
-		SetDebugName(newShader->m_domainShader, debugName.c_str());
-	}
-
-	std::vector<uint8_t> computeShaderByteCode;
-
-	bool compiledComputeShader = CompileShaderToByteCode(computeShaderByteCode, shaderName, shaderSource, config.m_computeShaderEntryPoint.c_str(), "cs_5_0");
-
-	if (compiledComputeShader) {
-		m_device->CreateComputeShader(computeShaderByteCode.data(), computeShaderByteCode.size(), NULL, &newShader->m_computeShader);
-		debugName = baseName;
-		debugName += "|CShader";
-
-		SetDebugName(newShader->m_computeShader, debugName.c_str());
-	}
-
+	ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&newShader->m_PSO)), "COULD NOT CREATE PSO");
 	m_loadedShaders.push_back(newShader);
+
 
 	return newShader;
 }
@@ -611,6 +591,44 @@ void Renderer::SetDebugName(ID3D12Object* object, char const* name)
 #endif
 }
 
+void Renderer::PopulateCommandList()
+{
+	// Command list allocators can only be reset when the associated 
+	  // command lists have finished execution on the GPU; apps should use 
+	  // fences to determine GPU execution progress.
+	ThrowIfFailed(m_commandAllocators[m_currentBackBuffer]->Reset(), "FAILED TO RESET COMMAND ALLOCATOR");
+
+	// However, when ExecuteCommandList() is called on a particular command 
+	// list, that command list can then be reset at any time and must be before 
+	// re-recording.
+	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_currentBackBuffer].Get(), m_defaultShader->m_PSO), "COULD NOT RESET COMMAND LIST");
+
+	// Set necessary state.
+	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+	m_commandList->RSSetViewports(1, &m_viewport);
+	//m_commandList->RSSetScissorRects(1, &m_scissorRect);
+
+	// Indicate that the back buffer will be used as a render target.
+	CD3DX12_RESOURCE_BARRIER resourceBarrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	m_commandList->ResourceBarrier(1, &resourceBarrierRTV);
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_RTVdescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
+	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+	// Record commands.
+	const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
+	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+	m_commandList->DrawInstanced(3, 1, 0, 0);
+
+	// Indicate that the back buffer will now be used to present.
+	CD3DX12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	m_commandList->ResourceBarrier(1, &resourceBarrier);
+
+	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
+}
+
 Shader* Renderer::CreateOrGetShader(std::filesystem::path shaderName)
 {
 	std::string filename = shaderName.replace_extension(".hlsl").string();
@@ -624,17 +642,45 @@ Shader* Renderer::CreateOrGetShader(std::filesystem::path shaderName)
 	return shaderSearched;
 }
 
+
+void Renderer::DrawVertexArray(std::vector<Vertex_PCU> const& vertexes) const
+{
+
+}
+
+void Renderer::DrawVertexArray(int numVertexes, const Vertex_PCU* vertexes) const
+{
+
+}
+
+void Renderer::SetModelMatrix(Mat44 const& modelMat)
+{
+
+}
+
+void Renderer::SetModelColor(Rgba8 const& modelColor)
+{
+
+}
+
+void Renderer::CreateViewport()
+{
+
+	m_viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(m_config.m_window->GetClientDimensions().x), static_cast<float>(m_config.m_window->GetClientDimensions().y), 0, 1);
+
+}
 void Renderer::BeginFrame()
 {
 	//DebugRenderBeginFrame();
 
 
-	ComPtr<ID3D12CommandAllocator> commandAllocator = m_commandAllocators[m_currentBackBuffer];
-	ComPtr<ID3D12Resource1> backBuffer = GetActiveColorTarget();
+	//ComPtr<ID3D12CommandAllocator> commandAllocator = m_commandAllocators[m_currentBackBuffer];
+	//ComPtr<ID3D12Resource1> backBuffer = GetActiveColorTarget();
 
-	commandAllocator->Reset();
-	m_commandList->Reset(commandAllocator.Get(), nullptr);
+	//commandAllocator->Reset();
+	//m_commandList->Reset(commandAllocator.Get(), nullptr);
 
+	PopulateCommandList();
 
 #if defined(ENGINE_USE_IMGUI)
 	ImGui_ImplDX11_NewFrame();

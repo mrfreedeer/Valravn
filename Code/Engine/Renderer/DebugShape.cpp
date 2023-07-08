@@ -32,8 +32,8 @@ bool DebugShape::CanShapeBeDeleted()
 
 void DebugShape::Render(Renderer* renderer) const
 {
-	renderer->BindTexture(m_texture);
-	renderer->DrawVertexArray(m_verts);
+	/*renderer->BindTexture(m_texture);
+	renderer->DrawVertexArray(m_verts);*/
 }
 
 Mat44 const DebugShape::GetBillboardModelMatrix(Camera const& camera) const

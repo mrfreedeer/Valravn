@@ -18,16 +18,16 @@ Billboard::~Billboard()
 
 void Billboard::Render(Renderer* renderer, Camera const& camera, BillboardType billboardType) const
 {
-	renderer->SetSamplerMode(SamplerMode::POINTCLAMP);
-	renderer->SetRasterizerState(CullMode::NONE, FillMode::SOLID, WindingOrder::COUNTERCLOCKWISE);
-	renderer->SetDepthStencilState(DepthTest::ALWAYS, false);
-	renderer->SetBlendMode(BlendMode::ALPHA);
+	//renderer->SetSamplerMode(SamplerMode::POINTCLAMP);
+	//renderer->SetRasterizerState(CullMode::NONE, FillMode::SOLID, WindingOrder::COUNTERCLOCKWISE);
+	//renderer->SetDepthStencilState(DepthTest::ALWAYS, false);
+	//renderer->SetBlendMode(BlendMode::ALPHA);
 
-	Mat44 billboardMatrix = GetModelMatrixForBillboard(m_position, camera, billboardType);
+	//Mat44 billboardMatrix = GetModelMatrixForBillboard(m_position, camera, billboardType);
 
-	renderer->SetModelMatrix(billboardMatrix);
-	renderer->BindTexture(m_texture);
-	renderer->DrawVertexArray(m_verts);
+	//renderer->SetModelMatrix(billboardMatrix);
+	//renderer->BindTexture(m_texture);
+	//renderer->DrawVertexArray(m_verts);
 
 }
 

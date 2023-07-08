@@ -193,9 +193,11 @@ void DevConsole::Render(AABB2 const& bounds, Renderer* rendererOverride) const
 	}
 
 	std::string fullFontPath = "Data/Images/" + m_config.m_font;
-	static BitmapFont* usedFont = usedRenderer->CreateOrGetBitmapFont(fullFontPath.c_str());
+	//#TODO DX12 FIXTHIS
 
-	Render_OpenFull(bounds, *usedRenderer, *usedFont, m_config.m_fontAspect);
+	/*static BitmapFont* usedFont = usedRenderer->CreateOrGetBitmapFont(fullFontPath.c_str());
+
+	Render_OpenFull(bounds, *usedRenderer, *usedFont, m_config.m_fontAspect);*/
 }
 
 DevConsoleMode DevConsole::GetMode() const
@@ -281,15 +283,17 @@ void DevConsole::Render_OpenFull(AABB2 const& bounds, Renderer& renderer, Bitmap
 	}
 
 	m_linesMutex.unlock();
-	renderer.BindTexture(nullptr);
-	renderer.SetBlendMode(BlendMode::ALPHA);
-	renderer.DrawVertexArray(blackOverlayVerts);
-	renderer.DrawVertexArray(whiteInputOverlayVerts);
+	//#TODO DX12 FIXTHIS
 
-	Render_InputCaret(renderer, font, fontAspect, cellHeight);
+	//renderer.BindTexture(nullptr);
+	//renderer.SetBlendMode(BlendMode::ALPHA);
+	//renderer.DrawVertexArray(blackOverlayVerts);
+	//renderer.DrawVertexArray(whiteInputOverlayVerts);
 
-	renderer.BindTexture(&font.GetTexture());
-	renderer.DrawVertexArray(textVerts);
+	//Render_InputCaret(renderer, font, fontAspect, cellHeight);
+
+	//renderer.BindTexture(&font.GetTexture());
+	//renderer.DrawVertexArray(textVerts);
 
 	Render_UserInput(renderer, font, fontAspect, cellHeight);
 
@@ -313,7 +317,9 @@ void DevConsole::Render_InputCaret(Renderer& renderer, BitmapFont& font, float f
 	caretColor.a = (m_caretVisible) ? 255 : 0;
 
 	AddVertsForAABB2D(caretVertexes, caretAABB2, caretColor);
-	renderer.DrawVertexArray(caretVertexes);
+	//#TODO DX12 FIXTHIS
+
+	//renderer.DrawVertexArray(caretVertexes);
 }
 
 void DevConsole::Render_UserInput(Renderer& renderer, BitmapFont& font, float fontAspect, float cellHeight) const
@@ -323,7 +329,9 @@ void DevConsole::Render_UserInput(Renderer& renderer, BitmapFont& font, float fo
 	float lineWidth = font.GetTextWidth(cellHeight, m_inputText);
 	AABB2 inputLineAABB2(Vec2::ZERO, Vec2(lineWidth, cellHeight));
 	font.AddVertsForTextInBox2D(userInputTextVerts, inputLineAABB2, cellHeight, m_inputText, Rgba8::CYAN, fontAspect, Vec2::ZERO, TextBoxMode::OVERRUN);
-	renderer.DrawVertexArray(userInputTextVerts);
+	//#TODO DX12 FIXTHIS
+
+	//renderer.DrawVertexArray(userInputTextVerts);
 }
 
 Strings DevConsole::ProcessCommandLine(std::string const& commandLine) const

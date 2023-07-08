@@ -438,7 +438,9 @@ Mesh::Mesh(MeshBuilder const& meshBuilder, Renderer* renderer)
 	m_stride = sizeof(Vertex_PNCU);
 	MemoryUsage const& memoryUsage = meshBuilder.m_importOptions.m_memoryUsage;
 
-	m_vertexBuffer = new VertexBuffer(renderer->m_device, meshBuilder.m_vertexes.size() * m_stride, m_stride, memoryUsage, vertexes.data());
+	//#TODO DX12 FIXTHIS
+
+	//m_vertexBuffer = new VertexBuffer(renderer->m_device, meshBuilder.m_vertexes.size() * m_stride, m_stride, memoryUsage, vertexes.data());
 
 
 }

@@ -1,12 +1,12 @@
 #pragma once
 #include <string>
-struct ID3D11VertexShader;
-struct ID3D11PixelShader;
-struct ID3D11GeometryShader;
-struct ID3D11HullShader;
-struct ID3D11DomainShader;
-struct ID3D11ComputeShader;
-struct ID3D11InputLayout;
+#include <cstdint>
+#include <vector>
+#include "Engine/Renderer/GraphicsCommon.hpp"
+
+struct ID3D12PipelineState;
+struct CD3DX12_RASTERIZER_DESC;
+struct CD3DX12_BLEND_DESC;
 
 struct ShaderConfig
 {
@@ -24,13 +24,29 @@ class Shader
 	friend class Renderer;
 
 public:
-	Shader(const ShaderConfig& config);
 	Shader(const Shader& copy) = delete;
+private:
+	Shader(const ShaderConfig& config);
 	~Shader();
 
 	const std::string& GetName() const;
 
+private:
 	ShaderConfig		m_config;
-	ID3D12Resource* m_vertexShader = nullptr;
-	ID3D12Resource* m_pixelShader = nullptr;
+
+	std::vector<uint8_t> m_VSByteCode;
+	std::vector<uint8_t> m_PSByteCode;
+	std::vector<uint8_t> m_cachedPSO;
+	
+	ID3D12PipelineState* m_PSO = nullptr;
+	BlendMode m_blendMode = BlendMode::OPAQUE;
+	DepthTest m_depthFunc = DepthTest::LESSEQUAL;
+	CullMode m_cullMode = CullMode::BACK;
+	WindingOrder m_windingOrder = WindingOrder::COUNTERCLOCKWISE;
+	TopologyMode m_topology = TopologyMode::TRIANGLELIST;
+
+	bool m_depthEnable = false;
+	bool m_stencilEnable = false;
+
+
 };

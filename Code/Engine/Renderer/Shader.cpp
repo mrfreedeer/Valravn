@@ -1,20 +1,22 @@
 #include "Engine/Renderer/Shader.hpp"
 #include "Engine/Renderer/Renderer.hpp"
+#include "Engine/Renderer/GraphicsCommon.hpp"
 
-#include <d3d11.h> 
 
-Shader::Shader(const ShaderConfig& config):
-m_config(config)
+Shader::Shader(const ShaderConfig& config) :
+	m_config(config)
 {
+
 }
 
 Shader::~Shader()
 {
-	DX_SAFE_RELEASE(m_vertexShader);
-	DX_SAFE_RELEASE(m_pixelShader);
+	DX_SAFE_RELEASE(m_PSO);
+	m_PSO = nullptr;
+
 }
 
 const std::string& Shader::GetName() const
 {
 	return m_config.m_name;
- }
+}

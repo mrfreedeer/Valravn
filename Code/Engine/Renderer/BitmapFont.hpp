@@ -1,11 +1,11 @@
 #pragma once
 #define CELL_ASPECT 0.7f
 
-#include "Engine/Renderer/Texture.hpp"
 #include "Engine/Renderer/SpriteSheet.hpp"
 #include "Engine/Core/EngineCommon.hpp"
 
 struct Vertex_PCU;
+class Texture;
 
 enum class TextBoxMode {
 	SHRINK_TO_FIT,
