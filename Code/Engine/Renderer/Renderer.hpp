@@ -143,14 +143,16 @@ private:
 	ComPtr<ID3D12DescriptorHeap> m_RTVdescriptorHeap;
 	ComPtr<ID3D12Fence1> m_fence;
 	ComPtr<IDXGIFactory4> m_dxgiFactory;
+	ComPtr<ID3D12PipelineState> m_pipelineState;
 
 	std::vector<Shader*> m_loadedShaders;
 	Shader* m_defaultShader = nullptr;
 	ComPtr<ID3D12Resource> m_vertexBuffer;
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 	D3D12_VIEWPORT m_viewport;
+	D3D12_RECT m_scissorRect;
 	unsigned int m_currentBackBuffer = 0;
-	unsigned int* m_fenceValues = nullptr;
+	std::vector<unsigned int> m_fenceValues;
 	unsigned int m_RTVdescriptorSize = 0;
 	HANDLE m_fenceEvent;
 	bool m_useWARP = false;

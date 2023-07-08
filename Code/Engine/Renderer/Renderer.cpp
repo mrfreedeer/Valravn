@@ -5,10 +5,16 @@
 #include "Engine/Renderer/DefaultShader.hpp"
 #include "Engine/Core/Vertex_PCU.hpp"
 #include "Engine/Renderer/Shader.hpp"
+#include "Game/EngineBuildPreferences.hpp"
 #include "d3dx12.h"
-
+#include "Engine/Math/Vec4.hpp"
 #include "Engine/Renderer/GraphicsCommon.hpp"
 
+
+struct Vertex {
+	float position[4];
+	float color[4];
+};
 
 inline void ThrowIfFailed(HRESULT hr, char const* errorMsg) {
 	if (FAILED(hr)) {
@@ -230,6 +236,7 @@ void Renderer::CreateRenderTargetViews()
 	// Get a helper handle to the descriptor and create the RTVs 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_RTVdescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
+	m_backBuffers.resize(m_config.m_backBuffersCount);
 	for (unsigned int frameBufferInd = 0; frameBufferInd < m_config.m_backBuffersCount; frameBufferInd++) {
 		ComPtr<ID3D12Resource2>& backBuffer = m_backBuffers[frameBufferInd];
 		HRESULT fetchBuffer = m_swapChain->GetBuffer(frameBufferInd, IID_PPV_ARGS(&backBuffer));
@@ -237,8 +244,7 @@ void Renderer::CreateRenderTargetViews()
 			ERROR_AND_DIE("COULD NOT GET FRAME BUFFER");
 		}
 
-		backBuffer.Reset();
-		m_device->CreateRenderTargetView(m_backBuffers[frameBufferInd].Get(), nullptr, rtvHandle);
+		m_device->CreateRenderTargetView(backBuffer.Get(), nullptr, rtvHandle);
 		rtvHandle.Offset(m_RTVdescriptorSize);
 
 	}
@@ -334,6 +340,7 @@ ComPtr<ID3D12Resource2> Renderer::GetBackUpColorTarget() const
 
 void Renderer::Startup()
 {
+	m_fenceValues.resize(m_config.m_backBuffersCount);
 	// Enable Debug Layer before initializing any DX12 object
 	EnableDebugLayer();
 	CreateViewport();
@@ -358,13 +365,19 @@ void Renderer::Startup()
 
 
 	{
-		// Define the geometry for a triangle.
-		Vertex_PCU triangleVertices[] =
+		Vertex triangleVertices[] =
 		{
-			Vertex_PCU(Vec3(0.0f, 0.25f * 2.0f, 0.0f), Rgba8( 255, 0, 0, 255 ), Vec2(0.0f, 0.0f)),
-			Vertex_PCU(Vec3(0.25f, -0.25f * 2.0f, 0.0f), Rgba8(0, 255, 0, 255), Vec2::ZERO ),
-			Vertex_PCU(Vec3(-0.25f, -0.25f * 2.0f, 0.0f), Rgba8(0, 0, 255, 255), Vec2::ZERO)
+			{ { -0.25f, -0.25f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+			{ { 0.25f, -0.25f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+			{ { 0.0f, 0.25f, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
 		};
+		//// Define the geometry for a triangle.
+		//Vertex_PCU triangleVertices[] =
+		//{
+		//	Vertex_PCU(Vec3(0.0f, 0.25f * 2.0f, 0.0f), Rgba8( 255, 0, 0, 255 ), Vec2(0.0f, 0.0f)),
+		//	Vertex_PCU(Vec3(0.25f, -0.25f * 2.0f, 0.0f), Rgba8(0, 255, 0, 255), Vec2::ZERO ),
+		//	Vertex_PCU(Vec3(-0.25f, -0.25f * 2.0f, 0.0f), Rgba8(0, 0, 255, 255), Vec2::ZERO)
+		//};
 
 		const UINT vertexBufferSize = sizeof(triangleVertices);
 
@@ -391,11 +404,12 @@ void Renderer::Startup()
 
 		// Initialize the vertex buffer view.
 		m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
-		m_vertexBufferView.StrideInBytes = sizeof(Vertex_PCU);
+		m_vertexBufferView.StrideInBytes = sizeof(Vertex);
 		m_vertexBufferView.SizeInBytes = vertexBufferSize;
 	}
 
 	CreateFence();
+
 	m_fenceValues[m_currentBackBuffer]++;
 	CreateFenceEvent();
 
@@ -542,8 +556,12 @@ Shader* Renderer::CreateShader(char const* shaderName, char const* shaderSource)
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> layoutElementsDesc;
-	CreateInputLayoutFromVS(vertexShaderByteCode, inputLayoutDesc, layoutElementsDesc);
-
+	//CreateInputLayoutFromVS(vertexShaderByteCode, inputLayoutDesc, layoutElementsDesc);
+	layoutElementsDesc =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+	};
 	std::vector<uint8_t>& pixelShaderByteCode = newShader->m_PSByteCode;
 	CompileShaderToByteCode(pixelShaderByteCode, shaderName, shaderSource, config.m_pixelEntryPoint.c_str(), "ps_5_0", false);
 
@@ -553,6 +571,7 @@ Shader* Renderer::CreateShader(char const* shaderName, char const* shaderSource)
 	psoDesc.VS = CD3DX12_SHADER_BYTECODE(newShader->m_VSByteCode.data(), newShader->m_VSByteCode.size());
 	psoDesc.PS = CD3DX12_SHADER_BYTECODE(newShader->m_PSByteCode.data(), newShader->m_PSByteCode.size());
 	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.RasterizerState.FrontCounterClockwise = TRUE;
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	psoDesc.DepthStencilState.DepthEnable = FALSE;
 	psoDesc.DepthStencilState.StencilEnable = FALSE;
@@ -584,7 +603,7 @@ Shader* Renderer::GetShaderForName(char const* shaderName)
 void Renderer::SetDebugName(ID3D12Object* object, char const* name)
 {
 #if defined(ENGINE_DEBUG_RENDER)
-	object->SetName(name);
+	//object->SetName(name);
 #else
 	UNUSED(object);
 	UNUSED(name);
@@ -606,7 +625,7 @@ void Renderer::PopulateCommandList()
 	// Set necessary state.
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 	m_commandList->RSSetViewports(1, &m_viewport);
-	//m_commandList->RSSetScissorRects(1, &m_scissorRect);
+	m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
 	// Indicate that the back buffer will be used as a render target.
 	CD3DX12_RESOURCE_BARRIER resourceBarrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -623,10 +642,9 @@ void Renderer::PopulateCommandList()
 	m_commandList->DrawInstanced(3, 1, 0, 0);
 
 	// Indicate that the back buffer will now be used to present.
-	CD3DX12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-	m_commandList->ResourceBarrier(1, &resourceBarrier);
+	//CD3DX12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+	//m_commandList->ResourceBarrier(1, &resourceBarrier);
 
-	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
 }
 
 Shader* Renderer::CreateOrGetShader(std::filesystem::path shaderName)
@@ -667,6 +685,7 @@ void Renderer::CreateViewport()
 {
 
 	m_viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<float>(m_config.m_window->GetClientDimensions().x), static_cast<float>(m_config.m_window->GetClientDimensions().y), 0, 1);
+	m_scissorRect = CD3DX12_RECT(0, 0, static_cast<long>(m_config.m_window->GetClientDimensions().x), static_cast<long>(m_config.m_window->GetClientDimensions().y));
 
 }
 void Renderer::BeginFrame()
@@ -700,17 +719,15 @@ void Renderer::EndFrame()
 	m_commandList->ResourceBarrier(1, &barrier);
 
 	// Close command list
-	HRESULT commandListClose = m_commandList->Close();
-	if (!SUCCEEDED(commandListClose)) {
-		ERROR_AND_DIE("COULD NOT CLOSE COMMAND LIST");
-	}
+	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
+
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
 
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 	m_swapChain->Present(1, 0);
 
 	// Flush Command Queue getting ready for next Frame
-	Flush(m_commandQueue, m_fence, m_fenceValues, m_fenceEvent);
+	Flush(m_commandQueue, m_fence, m_fenceValues.data(), m_fenceEvent);
 
 
 }

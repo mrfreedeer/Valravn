@@ -307,9 +307,9 @@ void DebugRenderSystem::CheckAllShapes()
 void DebugRenderSystem::RenderWorldShapes(Camera const& camera) const
 {
 	if (!m_isVisible) return;
-	Renderer* renderer = m_config.m_renderer;
 	//#TODO DX12 FIXTHIS
-	/*renderer->BeginCamera(camera); {
+	/*Renderer* renderer = m_config.m_renderer;
+	renderer->BeginCamera(camera); {
 		renderer->BindShader(nullptr);
 		renderer->BindTexture(nullptr);
 
