@@ -2,6 +2,7 @@
 
 #include "Engine/Math/Vec3.hpp"
 #include "Engine/Math/Mat44.hpp"
+#include "Game/EngineBuildPreferences.hpp"
 #include <filesystem>
 #include <cstdint>
 #include <vector>
@@ -73,11 +74,18 @@ constexpr int MAX_LIGHTS = 8;
 
 typedef void* HANDLE;
 
-
+/// <summary>
+/// Object that reports all live objects
+/// NEEDS TO BE THE LAST DESTROYED THING, OTHERWISE IT REPORTS FALSE POSITIVES
+/// </summary>
+struct LiveObjectReporter {
+	~LiveObjectReporter();
+};
 
 class Renderer {
 public:
 	Renderer(RendererConfig const& config);
+	~Renderer();
 	void Startup();
 	void BeginFrame();
 	void EndFrame();
@@ -126,12 +134,16 @@ private:
 	void CreateViewport();
 	// General
 	void SetDebugName(ID3D12Object* object, char const* name);
+	template<typename T_Object>
+	void SetDebugName(ComPtr<T_Object> object, char const* name);
 
 	void PopulateCommandList();
 private:
 
 
 	RendererConfig m_config = {};
+	// This object must be first ALWAYS!!!!!
+	LiveObjectReporter m_liveObjectReporter;
 
 	ComPtr<ID3D12Device2> m_device;
 	ComPtr<ID3D12RootSignature> m_rootSignature;
@@ -158,3 +170,22 @@ private:
 	bool m_useWARP = false;
 	unsigned int m_antiAliasingLevel = 0;
 };
+
+template<typename T_Object>
+void Renderer::SetDebugName(ComPtr<T_Object> object, char const* name)
+{
+#if defined(ENGINE_DEBUG_RENDER)
+	size_t strLength = strlen(name) + 1;
+	wchar_t* debugName = new wchar_t[strLength];
+	size_t numChars = 0;
+
+
+	mbstowcs_s(&numChars, debugName, strLength, name, _TRUNCATE);
+	object->SetPrivateData(WKPDID_D3DDebugObjectNameW, sizeof(debugName), debugName);
+	//object->SetName(name);
+#else
+	UNUSED(object);
+	UNUSED(name);
+#endif
+}
+

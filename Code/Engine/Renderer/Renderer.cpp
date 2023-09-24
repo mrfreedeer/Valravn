@@ -5,10 +5,11 @@
 #include "Engine/Renderer/DefaultShader.hpp"
 #include "Engine/Core/Vertex_PCU.hpp"
 #include "Engine/Renderer/Shader.hpp"
-#include "Game/EngineBuildPreferences.hpp"
-#include "d3dx12.h"
+
+#include <dxgidebug.h>
 #include "Engine/Math/Vec4.hpp"
 #include "Engine/Renderer/GraphicsCommon.hpp"
+#include <d3dx12.h> // Notice the X. These are the helper structures not the DX12 header
 
 
 struct Vertex {
@@ -29,6 +30,11 @@ Renderer::Renderer(RendererConfig const& config) :
 }
 
 
+Renderer::~Renderer()
+{
+
+}
+
 void Renderer::EnableDebugLayer() const
 {
 #if defined(_DEBUG)
@@ -36,6 +42,8 @@ void Renderer::EnableDebugLayer() const
 
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
 		debugController->EnableDebugLayer();
+
+		debugController->Release();
 	}
 	else {
 		ERROR_AND_DIE("COULD NOT ENABLE DX12 DEBUG LAYER");
@@ -56,6 +64,7 @@ void Renderer::CreateDXGIFactory()
 
 	HRESULT factoryCreation = CreateDXGIFactory2(factoryFlags, IID_PPV_ARGS(&m_dxgiFactory));
 
+	SetDebugName(m_dxgiFactory, "DXGIFACTORY");
 
 	if (!SUCCEEDED(factoryCreation)) {
 		ERROR_AND_DIE("COULD NOT CREATE DXGI FACTORY");
@@ -108,6 +117,8 @@ ComPtr<IDXGIAdapter4> Renderer::GetAdapter()
 				}
 			}
 		}
+
+		factory6.Reset();
 	}
 
 	HRESULT castToAdapter4 = adapter1.As(&adapter);
@@ -115,6 +126,7 @@ ComPtr<IDXGIAdapter4> Renderer::GetAdapter()
 		ERROR_AND_DIE("COULD NOT CAST ADAPTER1 TO ADAPTER4");
 	}
 
+	adapter1.Reset();
 	return adapter;
 }
 
@@ -124,6 +136,7 @@ void Renderer::CreateDevice(ComPtr<IDXGIAdapter4> adapter)
 {
 	HRESULT deviceCreationResult = D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&m_device));
 
+	SetDebugName(m_device, "Device");
 	if (!SUCCEEDED(deviceCreationResult)) {
 		ERROR_AND_DIE("COULD NOT CREATE DIRECTX12 DEVICE");
 	}
@@ -134,6 +147,7 @@ void Renderer::CreateDevice(ComPtr<IDXGIAdapter4> adapter)
 		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
 		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
 		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
+		infoQueue.Reset();
 	}
 	else {
 		ERROR_AND_DIE("COULD NOT SET MESSAGE SEVERITIES DX12 FOR DEBUG PURPORSES");
@@ -150,6 +164,7 @@ void Renderer::CreateCommandQueue(D3D12_COMMAND_LIST_TYPE type)
 	desc.NodeMask = 0;
 
 	HRESULT queueCreation = m_device->CreateCommandQueue(&desc, IID_PPV_ARGS(&m_commandQueue));
+	SetDebugName(m_commandQueue, "COMMANDQUEUE");
 	if (!SUCCEEDED(queueCreation)) {
 		ERROR_AND_DIE("COULD NOT CREATE COMMAND QUEUE");
 	}
@@ -163,7 +178,9 @@ bool Renderer::HasTearingSupport()
 	if (SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)))) {
 		ComPtr<IDXGIFactory5> dxgiFactory5;
 		if (SUCCEEDED(dxgiFactory.As(&dxgiFactory5))) {
+			dxgiFactory.Reset();
 			if (SUCCEEDED(dxgiFactory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing)))) {
+				dxgiFactory5.Reset();
 				return allowTearing == TRUE;
 			}
 		}
@@ -206,6 +223,7 @@ void Renderer::CreateSwapChain()
 		nullptr,
 		&swapChain1);
 
+	SetDebugName(swapChain1, "SwapChain1");
 	if (!SUCCEEDED(swapChainCreationResult)) {
 		ERROR_AND_DIE("COULD NOT CREATE SWAPCHAIN1");
 	}
@@ -213,6 +231,8 @@ void Renderer::CreateSwapChain()
 	if (!SUCCEEDED(swapChain1.As(&m_swapChain))) {
 		ERROR_AND_DIE("COULD NOT CONVERT SWAPCHAIN1 TO SWAPCHAIN4");
 	}
+
+	swapChain1.Reset();
 
 }
 
@@ -223,6 +243,7 @@ void Renderer::CreateDescriptorHeap(ComPtr<ID3D12DescriptorHeap>& descriptorHeap
 	desc.Type = type;
 
 	HRESULT descHeapCreation = m_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap));
+	SetDebugName(descriptorHeap, "DescriptorHeap");
 
 	if (!SUCCEEDED(descHeapCreation)) {
 		ERROR_AND_DIE("FAILED TO CREATE DESCRIPTOR HEAP");
@@ -255,6 +276,7 @@ void Renderer::CreateRenderTargetViews()
 void Renderer::CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12CommandAllocator>& commandAllocator)
 {
 	HRESULT commAllocatorCreation = m_device->CreateCommandAllocator(type, IID_PPV_ARGS(&commandAllocator));
+	SetDebugName(commandAllocator, "CommandAllocator");
 	if (!SUCCEEDED(commAllocatorCreation)) {
 		ERROR_AND_DIE("COULD NOT CREATE COMMAND ALLOCATOR");
 	}
@@ -263,6 +285,7 @@ void Renderer::CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D1
 void Renderer::CreateCommandList(D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12CommandAllocator>const& commandAllocator)
 {
 	HRESULT commListCreation = m_device->CreateCommandList(0, type, commandAllocator.Get(), nullptr, IID_PPV_ARGS(&m_commandList));
+	SetDebugName(m_commandList, "COMMANDLIST");
 	if (!SUCCEEDED(commListCreation)) {
 		ERROR_AND_DIE("COULD NOT CREATE COMMAND LIST");
 	}
@@ -271,7 +294,7 @@ void Renderer::CreateCommandList(D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12Comm
 void Renderer::CreateFence()
 {
 	HRESULT fenceCreation = m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence));
-
+	SetDebugName(m_fence, "FENCE");
 	if (!SUCCEEDED(fenceCreation)) {
 		ERROR_AND_DIE("COULD NOT CREATE FENCE");
 	}
@@ -290,6 +313,7 @@ void Renderer::CreateDefaultRootSignature()
 	ComPtr<ID3DBlob> error;
 	ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error), "COULD NOT SERIALIZE ROOT SIGNATURE");
 	ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)), "COULD NOT CREATE ROOT SIGNATURE");
+	SetDebugName(m_rootSignature, "DEFAULTROOTSIGNATURE");
 }
 
 unsigned int Renderer::SignalFence(ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int& fenceValue)
@@ -347,13 +371,14 @@ void Renderer::Startup()
 	CreateDXGIFactory();
 	ComPtr<IDXGIAdapter4> adapter = GetAdapter();
 	CreateDevice(adapter);
+	adapter.Reset();
 	CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 	CreateSwapChain();
 	CreateDescriptorHeap(m_RTVdescriptorHeap, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, m_config.m_backBuffersCount);
 	CreateRenderTargetViews();
 
 	m_commandAllocators.resize(m_config.m_backBuffersCount);
-	for (int frameIndex = 0; frameIndex < m_config.m_backBuffersCount; frameIndex++) {
+	for (unsigned int frameIndex = 0; frameIndex < m_config.m_backBuffersCount; frameIndex++) {
 		CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[frameIndex]);
 	}
 
@@ -386,7 +411,7 @@ void Renderer::Startup()
 		// over. Please read up on Default Heap usage. An upload heap is used here for 
 		// code simplicity and because there are very few verts to actually transfer.
 		CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-		CD3DX12_RESOURCE_DESC resourceDesc =  CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
+		CD3DX12_RESOURCE_DESC resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
 		ThrowIfFailed(m_device->CreateCommittedResource(
 			&heapProperties,
 			D3D12_HEAP_FLAG_NONE,
@@ -471,22 +496,22 @@ Shader* Renderer::CreateShader(std::filesystem::path shaderName)
 bool Renderer::CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, D3D12_INPUT_LAYOUT_DESC& pInputLayout, std::vector<D3D12_INPUT_ELEMENT_DESC>& elementsDescs)
 {
 	// Reflect shader info
-	ID3D12ShaderReflection* pVertexShaderReflection = NULL;
-	if (FAILED(D3DReflect((void*)shaderByteCode.data(), shaderByteCode.size(), IID_ID3D11ShaderReflection, (void**)&pVertexShaderReflection)))
+	ID3D12ShaderReflection* pShaderReflection = NULL;
+	if (FAILED(D3DReflect((void*)shaderByteCode.data(), shaderByteCode.size(), IID_ID3D11ShaderReflection, (void**)&pShaderReflection)))
 	{
 		return false;
 	}
 
 	// Get shader info
 	D3D12_SHADER_DESC shaderDesc;
-	pVertexShaderReflection->GetDesc(&shaderDesc);
+	pShaderReflection->GetDesc(&shaderDesc);
 
 
 	// Read input layout description from shader info
 	for (UINT i = 0; i < shaderDesc.InputParameters; i++)
 	{
 		D3D12_SIGNATURE_PARAMETER_DESC paramDesc;
-		pVertexShaderReflection->GetInputParameterDesc(i, &paramDesc);
+		pShaderReflection->GetInputParameterDesc(i, &paramDesc);
 
 		// fill out input element desc
 		D3D12_INPUT_ELEMENT_DESC elementDesc;
@@ -534,9 +559,10 @@ bool Renderer::CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, D3D
 		elementsDescs.push_back(elementDesc);
 	}
 
-	pInputLayout.NumElements = elementsDescs.size();
+	pInputLayout.NumElements = (UINT)elementsDescs.size();
 	pInputLayout.pInputElementDescs = elementsDescs.data();
 
+	DX_SAFE_RELEASE(pShaderReflection);
 	return true;
 }
 
@@ -551,7 +577,7 @@ Shader* Renderer::CreateShader(char const* shaderName, char const* shaderSource)
 
 	std::vector<uint8_t>& vertexShaderByteCode = newShader->m_VSByteCode;
 	CompileShaderToByteCode(vertexShaderByteCode, shaderName, shaderSource, config.m_vertexEntryPoint.c_str(), "vs_5_0", false);
-	
+
 	std::string shaderNameAsString(shaderName);
 
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc;
@@ -582,6 +608,9 @@ Shader* Renderer::CreateShader(char const* shaderName, char const* shaderSource)
 	psoDesc.SampleDesc.Count = 1;
 
 	ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&newShader->m_PSO)), "COULD NOT CREATE PSO");
+	std::string shaderDebugName = "PSO:";
+	shaderDebugName += shaderName;
+	SetDebugName(newShader->m_PSO, shaderDebugName.c_str());
 	m_loadedShaders.push_back(newShader);
 
 
@@ -603,6 +632,13 @@ Shader* Renderer::GetShaderForName(char const* shaderName)
 void Renderer::SetDebugName(ID3D12Object* object, char const* name)
 {
 #if defined(ENGINE_DEBUG_RENDER)
+	size_t strLength = strlen(name) + 1;
+	wchar_t* debugName = new wchar_t[strLength];
+	size_t numChars = 0;
+
+
+	mbstowcs_s(&numChars, debugName, strLength, name, _TRUNCATE);
+	object->SetPrivateData(WKPDID_D3DDebugObjectNameW, sizeof(debugName), debugName);
 	//object->SetName(name);
 #else
 	UNUSED(object);
@@ -734,6 +770,35 @@ void Renderer::EndFrame()
 
 void Renderer::Shutdown()
 {
+	Flush(m_commandQueue, m_fence, m_fenceValues.data(), m_fenceEvent);
+	for (Shader*& shader : m_loadedShaders) {
+		delete shader;
+		shader = nullptr;
+	}
+
+	for (auto commandAlloc : m_commandAllocators) {
+		commandAlloc.Reset();
+	}
+
+	for (auto backBuffer : m_backBuffers) {
+		backBuffer.Reset();
+	}
+
+	m_pipelineState.Reset();
+	m_fence.Reset();
+	m_RTVdescriptorHeap.Reset();
+	m_commandList.Reset();
+	m_rootSignature.Reset();
+	m_vertexBuffer.Reset();
+
+	m_commandQueue.Reset();
+	m_swapChain.Reset();
+	m_device.Reset();
+	//m_dxgiFactory.Get()->Release();
+	m_dxgiFactory.Reset();
+
+
+
 
 }
 
@@ -753,4 +818,25 @@ void Renderer::ClearScreen(Rgba8 const& color)
 	m_commandList->ClearRenderTargetView(rtvDescHandle, colorAsArray, 0, nullptr);
 
 
+}
+
+
+LiveObjectReporter::~LiveObjectReporter()
+{
+#if defined(_DEBUG) 
+	ID3D12Debug3* debugController = nullptr;
+
+	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
+
+		IDXGIDebug1* debug;
+		DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug));
+		debugController->Release();
+		debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_DETAIL | DXGI_DEBUG_RLO_IGNORE_INTERNAL));
+		debug->Release();
+	}
+	else {
+		ERROR_AND_DIE("COULD NOT ENABLE DX12 LIVE REPORTING");
+	}
+
+#endif
 }
