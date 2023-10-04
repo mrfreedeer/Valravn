@@ -383,6 +383,7 @@
     <ClCompile Include="..\ThirdParty\Squirrel\SmoothNoise.cpp" />
     <ClCompile Include="..\ThirdParty\TinyXML2\tinyxml2.cpp" />
     <ClCompile Include="Audio\AudioSystem.cpp" />
+    <ClCompile Include="Core\Buffer.cpp" />
     <ClCompile Include="Core\BufferUtils.cpp" />
     <ClCompile Include="Core\Clock.cpp" />
     <ClCompile Include="Core\DevConsole.cpp" />
@@ -482,6 +483,7 @@
     <ClInclude Include="..\ThirdParty\stb\stb_image.h" />
     <ClInclude Include="..\ThirdParty\TinyXML2\tinyxml2.h" />
     <ClInclude Include="Audio\AudioSystem.hpp" />
+    <ClInclude Include="Core\Buffer.hpp" />
     <ClInclude Include="Core\BufferUtils.hpp" />
     <ClInclude Include="Core\Clock.hpp" />
     <ClInclude Include="Core\DevConsole.hpp" />

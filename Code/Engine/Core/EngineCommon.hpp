@@ -28,9 +28,10 @@ extern NetworkSystem* g_theNetwork;
 
 
 enum class MemoryUsage {
-	Default,	// write one, gpu read many STATIC
-	Dynamic,	// gpu write, gpu read memory (cpu can't see it)
-	GPU,		// cpu read/write, gpu read
+	Default,	// Buffer made to read from multiple times but CPU cannot write to. 
+	Dynamic,	// Buffer that can be read/write from both GPU and CPU. 
+	GPU [[deprecated]],		// cpu read/write, gpu read
 };
+
 
 #pragma warning(disable : 26812)

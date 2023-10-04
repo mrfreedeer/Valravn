@@ -20,18 +20,12 @@
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-#define DX_SAFE_RELEASE(dxObject)			\
-{											\
-	if (( dxObject) != nullptr)				\
-	{										\
-		(dxObject)->Release();				\
-		(dxObject) = nullptr;				\
-	}										\
-}
+
 
 
 class Window;
 class Shader;
+class VertexBuffer;
 struct Rgba8;
 struct Vertex_PCU;
 
@@ -83,6 +77,7 @@ struct LiveObjectReporter {
 };
 
 class Renderer {
+	friend class Buffer;
 public:
 	Renderer(RendererConfig const& config);
 	~Renderer();
@@ -94,10 +89,12 @@ public:
 	void ClearScreen(Rgba8 const& color);
 	Shader* CreateOrGetShader(std::filesystem::path shaderName);
 
-	void DrawVertexArray(int numVertexes, const Vertex_PCU* vertexes) const;
-	void DrawVertexArray(std::vector<Vertex_PCU> const& vertexes) const;
+	void DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes);
+	void DrawVertexArray(std::vector<Vertex_PCU> const& vertexes);
 	void SetModelMatrix(Mat44 const& modelMat);
 	void SetModelColor(Rgba8 const& modelColor);
+	void ExecuteCommandLists(ID3D12CommandList** commandLists, unsigned int count);
+	void WaitForGPU();
 private:
 
 	// DX12 Initialization
@@ -108,25 +105,25 @@ private:
 	void CreateCommandQueue(D3D12_COMMAND_LIST_TYPE type);
 	bool HasTearingSupport();
 	void CreateSwapChain();
-	void CreateDescriptorHeap(ComPtr<ID3D12DescriptorHeap>& descriptorHeap, D3D12_DESCRIPTOR_HEAP_TYPE type, unsigned int numDescriptors);
+	void CreateDescriptorHeap(ID3D12DescriptorHeap*& descriptorHeap, D3D12_DESCRIPTOR_HEAP_TYPE type, unsigned int numDescriptors, bool visibleFromGPU = false);
 	void CreateRenderTargetViews();
 	void CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12CommandAllocator>& commandAllocator);
-	void CreateCommandList(D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12CommandAllocator> const& commandAllocator);
+	void CreateCommandList(ComPtr<ID3D12GraphicsCommandList2>& commList, D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12CommandAllocator> const& commandAllocator);
 	void CreateFence();
 	void CreateFenceEvent();
 	void CreateDefaultRootSignature();
 
 	// Fence signaling
-	unsigned int SignalFence(ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int& fenceValue);
-	void WaitForFenceValue(ComPtr<ID3D12Fence1> fence, unsigned int fenceValue, HANDLE fenceEvent);
-	void Flush(ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int* fenceValues, HANDLE fenceEvent);
+	unsigned int SignalFence(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int& fenceValue);
+	void WaitForFenceValue(ComPtr<ID3D12Fence1>& fence, unsigned int fenceValue, HANDLE fenceEvent);
+	void Flush(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int* fenceValues, HANDLE fenceEvent);
 
 	ComPtr<ID3D12Resource2> GetActiveColorTarget() const;
 	ComPtr<ID3D12Resource2> GetBackUpColorTarget() const;
 
 
 	// Shaders
-	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, D3D12_INPUT_LAYOUT_DESC& pInputLayout, std::vector<D3D12_INPUT_ELEMENT_DESC>& elementsDescs);
+	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std::vector<D3D12_SIGNATURE_PARAMETER_DESC>& elementsDescs);
 	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* name, char const* source, char const* entryPoint, char const* target, bool isAntialiasingOn);
 	Shader* CreateShader(std::filesystem::path shaderName);
 	Shader* CreateShader(char const* shaderName, char const* shaderSource);
@@ -137,7 +134,8 @@ private:
 	template<typename T_Object>
 	void SetDebugName(ComPtr<T_Object> object, char const* name);
 
-	void PopulateCommandList();
+	void DrawImmediateBuffers();
+	ComPtr<ID3D12GraphicsCommandList2> GetBufferCommandList();
 private:
 
 
@@ -150,17 +148,22 @@ private:
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<IDXGISwapChain4> m_swapChain;
 	std::vector<ComPtr<ID3D12Resource2>> m_backBuffers;
+	ComPtr<ID3D12Resource2> m_defaultRenderTarget;
 	ComPtr<ID3D12GraphicsCommandList2> m_commandList;
+	/// <summary>
+	/// Command list dedicated to immediate need for whatever buffer related purposes
+	/// </summary>
+	ComPtr<ID3D12GraphicsCommandList2> m_bufferCommandList;
 	std::vector<ComPtr<ID3D12CommandAllocator>> m_commandAllocators;
-	ComPtr<ID3D12DescriptorHeap> m_RTVdescriptorHeap;
+	ID3D12DescriptorHeap* m_RTVdescriptorHeap;
+	std::vector<ID3D12DescriptorHeap*> m_defaultDescriptorHeaps;
 	ComPtr<ID3D12Fence1> m_fence;
 	ComPtr<IDXGIFactory4> m_dxgiFactory;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 
 	std::vector<Shader*> m_loadedShaders;
+	std::vector<VertexBuffer*> m_immediateBuffers;
 	Shader* m_defaultShader = nullptr;
-	ComPtr<ID3D12Resource> m_vertexBuffer;
-	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
 	D3D12_VIEWPORT m_viewport;
 	D3D12_RECT m_scissorRect;
 	unsigned int m_currentBackBuffer = 0;
@@ -169,11 +172,13 @@ private:
 	HANDLE m_fenceEvent;
 	bool m_useWARP = false;
 	unsigned int m_antiAliasingLevel = 0;
+	unsigned int m_currentFrame = 0;
 };
 
 template<typename T_Object>
 void Renderer::SetDebugName(ComPtr<T_Object> object, char const* name)
 {
+	if(!object) return;
 #if defined(ENGINE_DEBUG_RENDER)
 	size_t strLength = strlen(name) + 1;
 	wchar_t* debugName = new wchar_t[strLength];

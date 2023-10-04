@@ -3,20 +3,23 @@ struct PSInput
 {
     float4 position : SV_POSITION;
     float4 color : COLOR;
+    float2 uv : TEXCOORD;
 };
 
 struct vs_input_t
 	{
-		float4 localPosition : POSITION;
+		float3 localPosition : POSITION;
 		float4 color : COLOR;
+        float2 uv: TEXCOORD;
 	};
 
 PSInput VertexMain(vs_input_t input)
 {
  PSInput result;
 
-    result.position = input.localPosition;
+    result.position = float4(input.localPosition, 1.0f);
     result.color = input.color;
+    result.uv = input.uv;
 
     return result;
 }

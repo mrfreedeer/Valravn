@@ -1,6 +1,19 @@
 #pragma  once
+#include "Engine/Core/ErrorWarningAssert.hpp"
+#define DX_SAFE_RELEASE(dxObject)			\
+{											\
+	if (( dxObject) != nullptr)				\
+	{										\
+		(dxObject)->Release();				\
+		(dxObject) = nullptr;				\
+	}										\
+}
 
-
+inline void ThrowIfFailed(long hr, char const* errorMsg) {
+	if (hr < 0) {
+		ERROR_AND_DIE(errorMsg);
+	}
+}
 
 
 #undef OPAQUE
