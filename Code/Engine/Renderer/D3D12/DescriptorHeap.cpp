@@ -12,7 +12,7 @@ DescriptorHeap::DescriptorHeap(Renderer* owner, DescriptorHeapType descType, siz
 	m_descriptorCount(numDescriptors)
 {
 	D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-	desc.NumDescriptors = numDescriptors;
+	desc.NumDescriptors = (UINT)numDescriptors;
 	desc.Type = LocalToD3D12(descType);
 	bool visibleFromGPU = (descType == DescriptorHeapType::SRV_UAV_CBV) || (descType == DescriptorHeapType::SAMPLER);
 	if (visibleFromGPU) {
@@ -47,7 +47,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeap::GetNextCPUHandle()
 
 D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeap::GetHandleAtOffset(size_t offset)
 {
-	CD3DX12_CPU_DESCRIPTOR_HANDLE handleToReturn(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(), offset, m_descriptorHandleSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE handleToReturn(m_descriptorHeap->GetCPUDescriptorHandleForHeapStart(), (UINT)offset, (UINT)m_descriptorHandleSize);
 
 	return handleToReturn;
 }

@@ -3,6 +3,7 @@
 #include "Engine/Renderer/VertexBuffer.hpp"
 #include "Engine/Renderer/Shader.hpp"
 #include "Engine/Renderer/Texture.hpp"
+#include "Engine/Renderer/D3D12/Resource.hpp"
 #include "Engine/Renderer/GraphicsCommon.hpp"
 #include "Engine/Renderer/D3D12/D3D12TypeConversions.hpp"
 #include "Engine/Window/Window.hpp"
@@ -283,7 +284,7 @@ void Renderer::CreateDescriptorHeap(ID3D12DescriptorHeap*& descriptorHeap, D3D12
 	}
 }
 
-void Renderer::CreateRenderTargetViews()
+void Renderer::CreateRenderTargetViewsForBackBuffers()
 {
 	// Handle size is vendor specific
 	m_RTVdescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -353,8 +354,9 @@ void Renderer::CreateDefaultRootSignature()
 	 * #TODO programatically define more complex root signatures. Perhaps just really on the HLSL definition?
 	 */
 	CD3DX12_DESCRIPTOR_RANGE1 descriptorRange[3] = {};
-	descriptorRange[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, -1, 0, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
-	descriptorRange[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, -1, 0, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
+	// YES. THE -1 IS not an error in UINT. It means unbounded
+	descriptorRange[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, (UINT)-1, 0, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
+	descriptorRange[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, (UINT)-1, 0, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
 	descriptorRange[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
 
 	// Base parameters, initial at the root table. Could be a descriptor, or a pointer to descriptor 
@@ -381,7 +383,7 @@ void Renderer::CreateDefaultRootSignature()
 
 	//CreateDescriptorHeap(m_defaultDescriptorHeaps[1], D3D12_DESCRIPTOR_HEAP_TYPE::D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1, true);
 
-	auto descriptorsize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	//auto descriptorsize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	// Get a helper handle to the descriptor and create the RTVs 
 	/*CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_defaultDescriptorHeaps[0]->GetCPUDescriptorHandleForHeapStart());
 	D3D12_SHADER_RESOURCE_VIEW_DESC bsDesc = {};
@@ -390,6 +392,29 @@ void Renderer::CreateDefaultRootSignature()
 	bsDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	m_device->CreateShaderResourceView(nullptr, &bsDesc, descriptorHandle);
 	descriptorHandle.Offset(descriptorsize);*/
+}
+
+void Renderer::CreateDefaultTextureTargets()
+{
+	IntVec2 texDimensions = Window::GetWindowContext()->GetClientDimensions();
+	TextureCreateInfo defaultRTInfo = {};
+	defaultRTInfo.m_bindFlags = ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT | ResourceBindFlagBit::RESOURCE_BIND_SHADER_RESOURCE_BIT;
+	defaultRTInfo.m_dimensions = texDimensions;
+	defaultRTInfo.m_format = TextureFormat::R8G8B8A8_UNORM;
+	defaultRTInfo.m_name = "DefaultRenderTarget";
+	defaultRTInfo.m_owner = this;
+
+	m_defaultRenderTarget = CreateTexture(defaultRTInfo);
+
+	TextureCreateInfo defaultDSTInfo = {};
+	defaultDSTInfo.m_bindFlags = ResourceBindFlagBit::RESOURCE_BIND_DEPTH_STENCIL_BIT | ResourceBindFlagBit::RESOURCE_BIND_SHADER_RESOURCE_BIT;
+	defaultDSTInfo.m_dimensions = texDimensions;
+	defaultDSTInfo.m_format = TextureFormat::R24G8_TYPELESS;
+	defaultDSTInfo.m_clearFormat = TextureFormat::D24_UNORM_S8_UINT;
+	defaultDSTInfo.m_name = "DefaultDepthTarget";
+	defaultDSTInfo.m_owner = this;
+
+	m_defaultDepthTarget = CreateTexture(defaultDSTInfo);
 }
 
 unsigned int Renderer::SignalFence(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int& fenceValue)
@@ -423,7 +448,7 @@ void Renderer::Flush(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fenc
 	unsigned int newFenceValue = SignalFence(commandQueue, fence, currentValue);
 
 	m_currentBackBuffer = m_swapChain->GetCurrentBackBufferIndex();
-	unsigned int waitOnValue = m_fenceValues[m_currentBackBuffer];
+	//unsigned int waitOnValue = m_fenceValues[m_currentBackBuffer];
 	WaitForFenceValue(fence, m_fenceValues[m_currentBackBuffer], fenceEvent);
 
 	m_fenceValues[m_currentBackBuffer] = newFenceValue;
@@ -463,7 +488,9 @@ void Renderer::Startup()
 	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::DSV] = new DescriptorHeap(this, DescriptorHeapType::DSV, 8);
 	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::SAMPLER] = new DescriptorHeap(this, DescriptorHeapType::SAMPLER, 64);
 
-	CreateRenderTargetViews();
+	CreateRenderTargetViewsForBackBuffers();
+	CreateDefaultTextureTargets();
+	
 
 	m_commandAllocators.resize(m_config.m_backBuffersCount + 1);
 	for (unsigned int frameIndex = 0; frameIndex < m_config.m_backBuffersCount; frameIndex++) {
@@ -486,6 +513,7 @@ void Renderer::Startup()
 	m_fenceValues[m_currentBackBuffer]++;
 	CreateFenceEvent();
 
+	
 }
 
 
@@ -686,6 +714,9 @@ void Renderer::SetDebugName(ID3D12Object* object, char const* name)
 
 void Renderer::DrawImmediateBuffers()
 {
+	Resource* defaultRTVResource = m_defaultRenderTarget->GetResource();
+	defaultRTVResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
+
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
 	DescriptorHeap* srvUAVCBVHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
 	DescriptorHeap* samplerHeap = GetDescriptorHeap(DescriptorHeapType::SAMPLER);
@@ -712,7 +743,8 @@ void Renderer::DrawImmediateBuffers()
 	m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
 	// Later, each texture has its handle
-	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = rtvDescriptorHeap->GetHandleAtOffset(m_currentBackBuffer);
+	ResourceView* rtv =  m_defaultRenderTarget->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT);
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = rtv->GetHandle();
 	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
 	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, nullptr);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -785,13 +817,14 @@ void Renderer::WaitForGPU()
 	int newFenceValue = SignalFence(m_commandQueue, m_fence, currentValue);
 
 	HRESULT fenceCompletion = m_fence->SetEventOnCompletion(currentValue, m_fenceEvent);
+	ThrowIfFailed(fenceCompletion, "ERROR ON SETTING EVENT ON COMPLETION FOR FENCE");
 	::WaitForSingleObjectEx(m_fenceEvent, INFINITE, false);
 
 	m_fenceValues[m_currentBackBuffer] = newFenceValue;
 
 }
 
-DescriptorHeap* Renderer::GetDescriptorHeap(DescriptorHeapType descriptorHeapType)
+DescriptorHeap* Renderer::GetDescriptorHeap(DescriptorHeapType descriptorHeapType) const
 {
 	return m_defaultDescriptorHeaps[(size_t)descriptorHeapType];
 }
@@ -804,15 +837,15 @@ void Renderer::CreateViewport()
 
 }
 
-Texture* Renderer::CreateTexture(TextureCreateInfo const& creationInfo)
+Texture* Renderer::CreateTexture(TextureCreateInfo& creationInfo)
 {
-	ID3D12Resource2* handle = creationInfo.m_handle;
+	Resource*& handle = creationInfo.m_handle;
 
 	if (handle) {
-		handle->AddRef();
+		handle->m_resource->AddRef();
 	}
 	else {
-		D3D12_RESOURCE_DESC1 textureDesc = {};
+		D3D12_RESOURCE_DESC textureDesc = {};
 		textureDesc.Width = (UINT64)creationInfo.m_dimensions.x;
 		textureDesc.Height = (UINT64)creationInfo.m_dimensions.y;
 		textureDesc.MipLevels = 1;
@@ -822,6 +855,99 @@ Texture* Renderer::CreateTexture(TextureCreateInfo const& creationInfo)
 		textureDesc.SampleDesc.Count = 1;
 		textureDesc.SampleDesc.Quality = 0;
 		textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+		CD3DX12_HEAP_PROPERTIES heapType(D3D12_HEAP_TYPE_DEFAULT);
+		D3D12_RESOURCE_STATES initialResourceState = D3D12_RESOURCE_STATE_COMMON;
+		if (creationInfo.m_initialData) {
+			initialResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+		}
+		handle = new Resource();
+		handle->m_currentState = initialResourceState;
+		D3D12_CLEAR_VALUE clearValue = {};
+		creationInfo.m_clearColour.GetAsFloats(clearValue.Color) ;
+		clearValue.Format = LocalToD3D12(creationInfo.m_clearFormat);
+
+		HRESULT textureCreateHR = m_device->CreateCommittedResource(
+			&heapType,
+			D3D12_HEAP_FLAG_NONE,
+			&textureDesc,
+			initialResourceState,
+			&clearValue,
+			IID_PPV_ARGS(&handle->m_resource)
+		);
+
+		
+		std::string const errorMsg = Stringf("COULD NOT CREATE TEXTURE WITH NAME %s", creationInfo.m_name.c_str());
+		ThrowIfFailed(textureCreateHR, errorMsg.c_str());
+	}
+
+	Texture* newTexture = new Texture(creationInfo);
+	newTexture->m_handle = handle;
+
+	m_loadedTextures.push_back(newTexture);
+
+	return newTexture;
+}
+
+ResourceView* Renderer::CreateShaderResourceView(ResourceViewInfo const& viewInfo) const
+{
+	
+	DescriptorHeap* srvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = srvDescriptorHeap->GetNextCPUHandle();
+	m_device->CreateShaderResourceView(viewInfo.m_source->m_resource, viewInfo.m_srvDesc, cpuHandle);
+
+	ResourceView* newResourceView = new ResourceView(viewInfo);
+	newResourceView->m_descriptorHandle = cpuHandle;
+
+	return newResourceView;
+}
+
+ResourceView* Renderer::CreateRenderTargetView(ResourceViewInfo const& viewInfo) const
+{
+	D3D12_RENDER_TARGET_VIEW_DESC* rtvDesc = viewInfo.m_rtvDesc;
+
+	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = rtvDescriptorHeap->GetNextCPUHandle();
+
+	m_device->CreateRenderTargetView(viewInfo.m_source->m_resource, rtvDesc, cpuHandle);
+
+	ResourceView* newResourceView = new ResourceView(viewInfo);
+	newResourceView->m_descriptorHandle = cpuHandle;
+
+	return newResourceView;
+}
+
+ResourceView* Renderer::CreateDepthStencilView(ResourceViewInfo const& viewInfo) const
+{
+	D3D12_DEPTH_STENCIL_VIEW_DESC* dsvDesc = viewInfo.m_dsvDesc;
+
+	DescriptorHeap* dsvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::DSV);
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = dsvDescriptorHeap->GetNextCPUHandle();
+
+	m_device->CreateDepthStencilView(viewInfo.m_source->m_resource, dsvDesc, cpuHandle);
+
+	ResourceView* newResourceView = new ResourceView(viewInfo);
+	newResourceView->m_descriptorHandle = cpuHandle;
+
+	return newResourceView;
+}
+
+ResourceView* Renderer::CreateTextureView(ResourceViewInfo const& resourceViewInfo) const
+{
+	switch (resourceViewInfo.m_viewType)
+	{
+	default:
+		ERROR_AND_DIE("UNRECOGNIZED VIEW TYPE");
+		break;
+	case RESOURCE_BIND_SHADER_RESOURCE_BIT:
+		return CreateShaderResourceView(resourceViewInfo);
+	case RESOURCE_BIND_RENDER_TARGET_BIT:
+		return CreateRenderTargetView(resourceViewInfo);
+	case RESOURCE_BIND_DEPTH_STENCIL_BIT:
+		return CreateDepthStencilView(resourceViewInfo);
+	case RESOURCE_BIND_UNORDERED_ACCESS_VIEW_BIT:
+		break;
 	}
 
 	return nullptr;
@@ -829,7 +955,7 @@ Texture* Renderer::CreateTexture(TextureCreateInfo const& creationInfo)
 
 void Renderer::BeginFrame()
 {
-
+	
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
 
 	// Command list allocators can only be reset when the associated 
@@ -845,15 +971,18 @@ void Renderer::BeginFrame()
 	// Indicate that the back buffer will be used as a render target.
 	CD3DX12_RESOURCE_BARRIER resourceBarrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	m_commandList->ResourceBarrier(1, &resourceBarrierRTV);
+	m_defaultRenderTarget->GetResource()->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 
-	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = rtvDescriptorHeap->GetHandleAtOffset(m_currentBackBuffer);
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = m_defaultRenderTarget->GetOrCreateView(ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();
 
 	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
 	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, nullptr);
 
+	ClearScreen(m_defaultRenderTarget->GetClearColour());
 	// Record commands.
-	const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-	m_commandList->ClearRenderTargetView(currentRTVHandle, clearColor, 0, nullptr);
+	//float clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	//m_defaultRenderTarget->GetClearColour().GetAsFloats(clearColor);
+	//m_commandList->ClearRenderTargetView(currentRTVHandle, clearColor, 0, nullptr);
 
 #if defined(ENGINE_USE_IMGUI)
 	ImGui_ImplDX11_NewFrame();
@@ -866,11 +995,20 @@ void Renderer::EndFrame()
 {
 	DrawImmediateBuffers();
 
+	Resource* defaultRTResource = m_defaultRenderTarget->GetResource();
+	defaultRTResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_SOURCE, m_commandList.Get());
+	CD3DX12_RESOURCE_BARRIER copyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
+		GetActiveColorTarget().Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_COPY_DEST);
+	m_commandList->ResourceBarrier(1, &copyBarrier);
+
+	m_commandList->CopyResource(m_backBuffers[m_currentBackBuffer].Get(), m_defaultRenderTarget->m_handle->m_resource);
 
 	//DebugRenderEndFrame();
 	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
 		GetActiveColorTarget().Get(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_COPY_DEST,
 		D3D12_RESOURCE_STATE_PRESENT);
 
 	m_commandList->ResourceBarrier(1, &barrier);
@@ -900,6 +1038,12 @@ void Renderer::EndFrame()
 void Renderer::Shutdown()
 {
 	Flush(m_commandQueue, m_fence, m_fenceValues.data(), m_fenceEvent);
+
+	for (Texture*& texture : m_loadedTextures) {
+		delete texture;
+		texture = nullptr;
+	}
+
 	for (Shader*& shader : m_loadedShaders) {
 		delete shader;
 		shader = nullptr;
@@ -928,7 +1072,7 @@ void Renderer::Shutdown()
 	//m_dxgiFactory.Get()->Release();
 	m_dxgiFactory.Reset();
 
-
+	
 
 
 }
@@ -939,15 +1083,17 @@ void Renderer::ClearScreen(Rgba8 const& color)
 
 	float colorAsArray[4];
 	color.GetAsFloats(colorAsArray);
-	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		GetActiveColorTarget().Get(),
-		D3D12_RESOURCE_STATE_PRESENT,
-		D3D12_RESOURCE_STATE_RENDER_TARGET
-	);
+	Resource* rtResource = m_defaultRenderTarget->GetResource();
+	rtResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
+	//CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+	//	GetActiveColorTarget().Get(),
+	//	D3D12_RESOURCE_STATE_PRESENT,
+	//	D3D12_RESOURCE_STATE_RENDER_TARGET
+	//);
 
-	m_commandList->ResourceBarrier(1, &barrier);
+	//m_commandList->ResourceBarrier(1, &barrier);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = rtvDescriptorHeap->GetHandleAtOffset(m_currentBackBuffer);
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = m_defaultRenderTarget->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();;
 
 	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
 	//	m_currentBackBuffer, m_RTVdescriptorSize);

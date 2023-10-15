@@ -3,6 +3,7 @@
 #include "Engine/Math/Vec3.hpp"
 #include "Engine/Math/Mat44.hpp"
 #include "Engine/Renderer/D3D12/DescriptorHeap.hpp"
+#include "Engine/Renderer/ResourceView.hpp"
 #include "Game/EngineBuildPreferences.hpp"
 #include <filesystem>
 #include <cstdint>
@@ -102,10 +103,12 @@ public:
 	void SetModelColor(Rgba8 const& modelColor);
 	void ExecuteCommandLists(ID3D12CommandList** commandLists, unsigned int count);
 	void WaitForGPU();
-	DescriptorHeap* GetDescriptorHeap(DescriptorHeapType descriptorHeapType);
+	DescriptorHeap* GetDescriptorHeap(DescriptorHeapType descriptorHeapType) const;
+	ResourceView* CreateTextureView(ResourceViewInfo const& resourceViewInfo) const;
+
 private:
 
-	// DX12 Initialization
+	// DX12 Initialization & Render Initialization
 	void EnableDebugLayer() const;
 	void CreateDXGIFactory();
 	ComPtr<IDXGIAdapter4> GetAdapter();
@@ -114,12 +117,13 @@ private:
 	bool HasTearingSupport();
 	void CreateSwapChain();
 	void CreateDescriptorHeap(ID3D12DescriptorHeap*& descriptorHeap, D3D12_DESCRIPTOR_HEAP_TYPE type, unsigned int numDescriptors, bool visibleFromGPU = false);
-	void CreateRenderTargetViews();
+	void CreateRenderTargetViewsForBackBuffers();
 	void CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12CommandAllocator>& commandAllocator);
 	void CreateCommandList(ComPtr<ID3D12GraphicsCommandList2>& commList, D3D12_COMMAND_LIST_TYPE type, ComPtr<ID3D12CommandAllocator> const& commandAllocator);
 	void CreateFence();
 	void CreateFenceEvent();
 	void CreateDefaultRootSignature();
+	void CreateDefaultTextureTargets();
 
 	// Fence signaling
 	unsigned int SignalFence(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int& fenceValue);
@@ -137,8 +141,10 @@ private:
 	Shader* CreateShader(char const* shaderName, char const* shaderSource);
 	Shader* GetShaderForName(char const* shaderName);
 	void CreateViewport();
-	Texture* CreateTexture(TextureCreateInfo const& creationInfo);
-
+	Texture* CreateTexture(TextureCreateInfo& creationInfo);
+	ResourceView* CreateShaderResourceView(ResourceViewInfo const& viewInfo) const;
+	ResourceView* CreateRenderTargetView(ResourceViewInfo const& viewInfo) const;
+	ResourceView* CreateDepthStencilView(ResourceViewInfo const& viewInfo) const;
 
 	// General
 	void SetDebugName(ID3D12Object* object, char const* name);
@@ -159,7 +165,8 @@ private:
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<IDXGISwapChain4> m_swapChain;
 	std::vector<ComPtr<ID3D12Resource2>> m_backBuffers;
-	ComPtr<ID3D12Resource2> m_defaultRenderTarget;
+	Texture* m_defaultRenderTarget;
+	Texture* m_defaultDepthTarget;
 	ComPtr<ID3D12GraphicsCommandList2> m_commandList;
 	/// <summary>
 	/// Command list dedicated to immediate need for whatever buffer related purposes

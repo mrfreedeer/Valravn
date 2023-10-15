@@ -14,25 +14,25 @@ DXGI_FORMAT LocalToD3D12(TextureFormat textureFormat)
 	}
 }
 
-D3D12_RESOURCE_FLAGS LocalToD3D12(TextureBindFlag flags)
+D3D12_RESOURCE_FLAGS LocalToD3D12(ResourceBindFlag flags)
 {
 	D3D12_RESOURCE_FLAGS result = D3D12_RESOURCE_FLAG_NONE;
 
-	if (flags & TextureBindFlagBit::TEXTURE_BIND_SHADER_RESOURCE_BIT) {
+	if (flags & ResourceBindFlagBit::RESOURCE_BIND_SHADER_RESOURCE_BIT) {
 		result |= D3D12_RESOURCE_FLAG_NONE;
 
 	}
 
-	if (flags & TextureBindFlagBit::TEXTURE_BIND_RENDER_TARGET_BIT) {
+	if (flags & ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT) {
 		result |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
 	}
 
-	if (flags & TextureBindFlagBit::TEXTURE_BIND_DEPTH_STENCIL_BIT) {
+	if (flags & ResourceBindFlagBit::RESOURCE_BIND_DEPTH_STENCIL_BIT) {
 		result |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 	}
 
-	if (flags & TextureBindFlagBit::TEXTURE_BIND_UNORDERED_ACCESS_VIEW_BIT) {
+	if (flags & ResourceBindFlagBit::RESOURCE_BIND_UNORDERED_ACCESS_VIEW_BIT) {
 		result |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	}
 
