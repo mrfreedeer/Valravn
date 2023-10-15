@@ -13,6 +13,6 @@ private:
 	Resource();
 	~Resource();
 
-	ID3D12Resource2* m_resource;
+	ID3D12Resource2* m_resource = nullptr;
 	int m_currentState = 0;
 };

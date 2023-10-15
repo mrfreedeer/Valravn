@@ -295,14 +295,27 @@ void Renderer::CreateRenderTargetViewsForBackBuffers()
 
 	m_backBuffers.resize(m_config.m_backBuffersCount);
 	for (unsigned int frameBufferInd = 0; frameBufferInd < m_config.m_backBuffersCount; frameBufferInd++) {
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvDescriptorHeap->GetNextCPUHandle();
-		ComPtr<ID3D12Resource2>& backBuffer = m_backBuffers[frameBufferInd];
-		HRESULT fetchBuffer = m_swapChain->GetBuffer(frameBufferInd, IID_PPV_ARGS(&backBuffer));
+		ID3D12Resource2* bufferTex = nullptr;
+		Texture*& backBuffer = m_backBuffers[frameBufferInd];
+		HRESULT fetchBuffer = m_swapChain->GetBuffer(frameBufferInd, IID_PPV_ARGS(&bufferTex));
 		if (!SUCCEEDED(fetchBuffer)) {
 			ERROR_AND_DIE("COULD NOT GET FRAME BUFFER");
 		}
 
-		m_device->CreateRenderTargetView(backBuffer.Get(), nullptr, rtvHandle);
+		 D3D12_RESOURCE_DESC bufferTexDesc = bufferTex->GetDesc();
+
+		 TextureCreateInfo backBufferTexInfo = {};
+		backBufferTexInfo.m_bindFlags = ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT;
+		backBufferTexInfo.m_dimensions = IntVec2(bufferTexDesc.Width, bufferTexDesc.Height);
+		backBufferTexInfo.m_format = TextureFormat::R8G8B8A8_UNORM;
+		backBufferTexInfo.m_name = "DefaultRenderTarget";
+		backBufferTexInfo.m_owner = this;
+		backBufferTexInfo.m_handle = new Resource();
+		backBufferTexInfo.m_handle->m_resource = bufferTex;
+
+		backBuffer = CreateTexture(backBufferTexInfo);
+		DX_SAFE_RELEASE(bufferTex);
+		//m_device->CreateRenderTargetView(bufferTex.Get(), nullptr, rtvHandle);
 		//rtvHandle.Offset(m_RTVdescriptorSize);
 
 	}
@@ -454,12 +467,12 @@ void Renderer::Flush(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fenc
 	m_fenceValues[m_currentBackBuffer] = newFenceValue;
 }
 
-ComPtr<ID3D12Resource2> Renderer::GetActiveColorTarget() const
+Texture* Renderer::GetActiveColorTarget() const
 {
 	return m_backBuffers[m_currentBackBuffer];
 }
 
-ComPtr<ID3D12Resource2> Renderer::GetBackUpColorTarget() const
+Texture* Renderer::GetBackUpColorTarget() const
 {
 	int otherInd = (m_currentBackBuffer + 1) % 2;
 	return m_backBuffers[otherInd];
@@ -714,8 +727,9 @@ void Renderer::SetDebugName(ID3D12Object* object, char const* name)
 
 void Renderer::DrawImmediateBuffers()
 {
-	Resource* defaultRTVResource = m_defaultRenderTarget->GetResource();
-	defaultRTVResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
+	Texture* currentRt = GetActiveColorTarget();
+	Resource* currentRtResc = currentRt->GetResource();
+	currentRtResc->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
 	DescriptorHeap* srvUAVCBVHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
@@ -743,8 +757,8 @@ void Renderer::DrawImmediateBuffers()
 	m_commandList->RSSetScissorRects(1, &m_scissorRect);
 
 	// Later, each texture has its handle
-	ResourceView* rtv =  m_defaultRenderTarget->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT);
-	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = rtv->GetHandle();
+	//ResourceView* rtv =  m_defaultRenderTarget->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT);
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = currentRt->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();
 	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
 	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, nullptr);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -843,6 +857,7 @@ Texture* Renderer::CreateTexture(TextureCreateInfo& creationInfo)
 
 	if (handle) {
 		handle->m_resource->AddRef();
+		//handle->m_resource->
 	}
 	else {
 		D3D12_RESOURCE_DESC textureDesc = {};
@@ -955,7 +970,8 @@ ResourceView* Renderer::CreateTextureView(ResourceViewInfo const& resourceViewIn
 
 void Renderer::BeginFrame()
 {
-	
+	Texture* currentRt = GetActiveColorTarget();
+	Resource* activeRTResource = currentRt->GetResource();
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
 
 	// Command list allocators can only be reset when the associated 
@@ -968,12 +984,14 @@ void Renderer::BeginFrame()
 	// re-recording.
 	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_currentBackBuffer].Get(), m_defaultShader->m_PSO), "COULD NOT RESET COMMAND LIST");
 
+	activeRTResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 	// Indicate that the back buffer will be used as a render target.
-	CD3DX12_RESOURCE_BARRIER resourceBarrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	m_commandList->ResourceBarrier(1, &resourceBarrierRTV);
-	m_defaultRenderTarget->GetResource()->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
+	//CD3DX12_RESOURCE_BARRIER resourceBarrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	//m_commandList->ResourceBarrier(1, &resourceBarrierRTV);
+	//m_defaultRenderTarget->GetResource()->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 
-	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = m_defaultRenderTarget->GetOrCreateView(ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();
+	//D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = m_defaultRenderTarget->GetOrCreateView(ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = currentRt->GetOrCreateView(ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();
 
 	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
 	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, nullptr);
@@ -996,22 +1014,23 @@ void Renderer::EndFrame()
 	DrawImmediateBuffers();
 
 	Resource* defaultRTResource = m_defaultRenderTarget->GetResource();
-	defaultRTResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_SOURCE, m_commandList.Get());
-	CD3DX12_RESOURCE_BARRIER copyBarrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		GetActiveColorTarget().Get(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET,
-		D3D12_RESOURCE_STATE_COPY_DEST);
-	m_commandList->ResourceBarrier(1, &copyBarrier);
+	defaultRTResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_DEST, m_commandList.Get());
 
-	m_commandList->CopyResource(m_backBuffers[m_currentBackBuffer].Get(), m_defaultRenderTarget->m_handle->m_resource);
+	// This is setting up for IMGUI
+	Resource* currentRtResource = GetActiveColorTarget()->GetResource();
+	currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_SOURCE, m_commandList.Get());
 
+
+	m_commandList->CopyResource(m_defaultRenderTarget->m_handle->m_resource, currentRtResource->m_resource);
+
+	currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_PRESENT, m_commandList.Get());
 	//DebugRenderEndFrame();
-	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+	/*CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
 		GetActiveColorTarget().Get(),
 		D3D12_RESOURCE_STATE_COPY_DEST,
 		D3D12_RESOURCE_STATE_PRESENT);
 
-	m_commandList->ResourceBarrier(1, &barrier);
+	m_commandList->ResourceBarrier(1, &barrier);*/
 
 	// Close command list
 	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
@@ -1053,9 +1072,9 @@ void Renderer::Shutdown()
 		commandAlloc.Reset();
 	}
 
-	for (auto backBuffer : m_backBuffers) {
-		backBuffer.Reset();
-	}
+	//for (auto backBuffer : m_backBuffers) {
+	//	backBuffer.Reset();
+	//}
 
 	m_pipelineState.Reset();
 	m_fence.Reset();

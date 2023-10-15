@@ -130,8 +130,8 @@ private:
 	void WaitForFenceValue(ComPtr<ID3D12Fence1>& fence, unsigned int fenceValue, HANDLE fenceEvent);
 	void Flush(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int* fenceValues, HANDLE fenceEvent);
 
-	ComPtr<ID3D12Resource2> GetActiveColorTarget() const;
-	ComPtr<ID3D12Resource2> GetBackUpColorTarget() const;
+	Texture* GetActiveColorTarget() const;
+	Texture* GetBackUpColorTarget() const;
 
 
 	// Shaders & Resources
@@ -151,6 +151,7 @@ private:
 	template<typename T_Object>
 	void SetDebugName(ComPtr<T_Object> object, char const* name);
 
+
 	void DrawImmediateBuffers();
 	ComPtr<ID3D12GraphicsCommandList2> GetBufferCommandList();
 private:
@@ -164,7 +165,7 @@ private:
 	ComPtr<ID3D12RootSignature> m_rootSignature;
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<IDXGISwapChain4> m_swapChain;
-	std::vector<ComPtr<ID3D12Resource2>> m_backBuffers;
+	std::vector<Texture*> m_backBuffers;
 	Texture* m_defaultRenderTarget;
 	Texture* m_defaultDepthTarget;
 	ComPtr<ID3D12GraphicsCommandList2> m_commandList;
