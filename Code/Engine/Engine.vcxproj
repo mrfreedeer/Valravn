@@ -444,6 +444,8 @@
     <ClCompile Include="Renderer\Camera.cpp" />
     <ClCompile Include="Renderer\ConstantBuffer.cpp" />
     <ClCompile Include="Renderer\D3D11\D3D11TypeConversions.cpp" />
+    <ClCompile Include="Renderer\D3D12\D3D12TypeConversions.cpp" />
+    <ClCompile Include="Renderer\D3D12\DescriptorHeap.cpp" />
     <ClCompile Include="Renderer\DebugRendererSystem.cpp" />
     <ClCompile Include="Renderer\DebugShape.cpp" />
     <ClCompile Include="Renderer\IndexBuffer.cpp" />
@@ -547,6 +549,7 @@
     <ClInclude Include="Renderer\Camera.hpp" />
     <ClInclude Include="Renderer\ConstantBuffer.hpp" />
     <ClInclude Include="Renderer\D3D11\D3D11TypeConversions.hpp" />
+    <ClInclude Include="Renderer\D3D12\D3D12TypeConversions.hpp" />
     <ClInclude Include="Renderer\D3D12\d3dx12.h" />
     <ClInclude Include="Renderer\D3D12\d3dx12_barriers.h" />
     <ClInclude Include="Renderer\D3D12\d3dx12_check_feature_support.h" />
@@ -558,6 +561,7 @@
     <ClInclude Include="Renderer\D3D12\d3dx12_resource_helpers.h" />
     <ClInclude Include="Renderer\D3D12\d3dx12_root_signature.h" />
     <ClInclude Include="Renderer\D3D12\d3dx12_state_object.h" />
+    <ClInclude Include="Renderer\D3D12\DescriptorHeap.hpp" />
     <ClInclude Include="Renderer\DebugRendererSystem.hpp" />
     <ClInclude Include="Renderer\DebugShape.hpp" />
     <ClInclude Include="Renderer\DefaultShader.hpp" />

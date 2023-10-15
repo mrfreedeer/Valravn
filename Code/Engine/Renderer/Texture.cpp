@@ -1,126 +1,95 @@
-//#include "Engine/Renderer/Texture.hpp"
-//#include "Engine/Renderer/Renderer.hpp"
-//#include "Engine/Core/ErrorWarningAssert.hpp"
-//#include "Engine/Renderer/TextureView.hpp"
-//#include "Engine/Renderer/D3D11/D3D11TypeConversions.hpp"
-//#include "Game/EngineBuildPreferences.hpp"
-//#include <d3d11.h>
-//
-//Texture::Texture(TextureFormat format) :
-//	m_format(format)
-//{
-//}
-//
-//Texture::~Texture()
-//{
-//	DX_SAFE_RELEASE(m_texture);
-//
-//	for (TextureView* view : m_views) {
-//		delete view;
-//	}
-//
-//	m_views.clear();
-//}
-//
-//TextureView* Texture::GetShaderResourceView(bool multiSampled)
-//{
-//	TextureViewInfo info;
-//	info.m_type = TextureBindFlagBit::TEXTURE_BIND_SHADER_RESOURCE_BIT;
-//	info.m_isMultiSampled = multiSampled;
-//	info.m_isCubeMap = m_isCubeMap;
-//	return  GetOrCreateView(info);
-//}
-//
-//TextureView* Texture::GetDepthStencilView(bool multiSampled)
-//{
-//	TextureViewInfo info;
-//	info.m_type = TextureBindFlagBit::TEXTURE_BIND_DEPTH_STENCIL_BIT;
-//	info.m_isMultiSampled = multiSampled;
-//
-//	return  GetOrCreateView(info);
-//}
-//
-//TextureView* Texture::GetRenderTargetView(bool multiSampled)
-//{
-//	TextureViewInfo info;
-//	info.m_type = TextureBindFlagBit::TEXTURE_BIND_RENDER_TARGET_BIT;
-//	info.m_isMultiSampled = multiSampled;
-//	return  GetOrCreateView(info);
-//}
-//
-//TextureView* Texture::GetOrCreateView(TextureViewInfo const& viewInfo)
-//{
-//	ASSERT_OR_DIE(m_allowedBinds & viewInfo.m_type, "CREATING AN UNSUPPORTED VIEW ON A TEXTURE");
-//
-//
-//	for (TextureView* view : m_views) {
-//		if (view->m_info == viewInfo) {
-//			return view;
-//		}
-//	}
-//
-//
-//	TextureView* newView = new TextureView();
-//	newView->m_handle = nullptr;
-//	newView->m_source = this;
-//	m_texture->AddRef();
-//	newView->m_sourceHandle = m_texture;
-//	newView->m_info = viewInfo;
-//	//#TODO DX12 FIXTHIS
-//
-//	/*ID3D11Device* device = m_owner->m_device;
-//	switch (viewInfo.m_type)
-//	{
-//	case TextureBindFlagBit::TEXTURE_BIND_SHADER_RESOURCE_BIT: {
-//		D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
-//		desc.Format = LocalToD3D11ColorFormat(m_format);
-//		if (viewInfo.m_isCubeMap) {
-//			desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
-//		}
-//		else {
-//			if (viewInfo.m_isMultiSampled) {
-//				desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DMS;
-//			}
-//			else {
-//				desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-//			}
-//		}
-//		desc.Texture2D.MostDetailedMip = 0;
-//		desc.Texture2D.MipLevels = 1;
-//
-//		device->CreateShaderResourceView(m_texture, &desc, &newView->m_shaderRscView);
-//		break;
-//	}
-//	case TextureBindFlagBit::TEXTURE_BIND_RENDER_TARGET_BIT: {
-//		D3D11_RENDER_TARGET_VIEW_DESC desc = {};
-//		if (viewInfo.m_isMultiSampled) {
-//			desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMS;
-//		}
-//		else {
-//			desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-//		}
-//		device->CreateRenderTargetView(m_texture, &desc, &newView->m_renderTgtView);
-//		break;
-//	}
-//	case TextureBindFlagBit::TEXTURE_BIND_DEPTH_STENCIL_BIT: {
-//		D3D11_DEPTH_STENCIL_VIEW_DESC desc = {};
-//		desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-//		if (viewInfo.m_isMultiSampled) {
-//			desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
-//		}
-//		else {
-//			desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-//		}
-//		desc.Flags = 0;
-//		desc.Texture2D.MipSlice = 0;
-//
-//		device->CreateDepthStencilView(m_texture, &desc, &newView->m_depthStencilView);
-//		break;
-//	}
-//	default: ERROR_AND_DIE("UNHANDLED VIEW TYPE");
-//	}
-//	m_views.push_back(newView);*/
-//
-//	return newView;
-//}
-//
+#include "Engine/Renderer/Texture.hpp"
+#include "Engine/Renderer/GraphicsCommon.hpp"
+#include "Engine/Renderer/D3D12/D3D12TypeConversions.hpp"
+#include "Engine/Renderer/Renderer.hpp"
+#include "Engine/Core/StringUtils.hpp"
+#include <d3d12.h>
+
+
+Texture::Texture(TextureCreateInfo const& createInfo) :
+	m_creationInfo(createInfo),
+	m_owner(createInfo.m_owner),
+	m_handle(createInfo.m_handle)
+{
+}
+
+void Texture::CreateShaderResourceView()
+{
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	/*
+	* SHADER COMPONENT MAPPING RGBA = 0,1,2,3
+	* 4 Force a value of 0
+	* 5 Force a value of 1
+	*/
+	srvDesc.Shader4ComponentMapping = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0, 1, 2, 3);
+	srvDesc.Format = LocalToD3D12(m_creationInfo.m_format);
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+
+	DescriptorHeap* srvDescriptorHeap = m_owner->GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
+
+
+	ComPtr<ID3D12Device2> device = m_owner->m_device;
+	device->CreateShaderResourceView(m_handle, &srvDesc, srvDescriptorHeap->GetNextCPUHandle());
+
+	m_createdViews |= TextureBindFlagBit::TEXTURE_BIND_SHADER_RESOURCE_BIT;
+}
+
+void Texture::CreateRenderTargetView()
+{
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	rtvDesc.Format = LocalToD3D12(m_creationInfo.m_format);
+
+	DescriptorHeap* rtvDescriptorHeap = m_owner->GetDescriptorHeap(DescriptorHeapType::RTV);
+	ComPtr<ID3D12Device2> device = m_owner->m_device;
+	device->CreateRenderTargetView(m_handle, &rtvDesc, rtvDescriptorHeap->GetNextCPUHandle());
+	m_createdViews |= TextureBindFlagBit::TEXTURE_BIND_RENDER_TARGET_BIT;
+
+}
+
+void Texture::CreateDepthStencilView()
+{
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+	dsvDesc.Format = LocalToD3D12(m_creationInfo.m_format);
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+
+	DescriptorHeap* dsvDescriptorHeap = m_owner->GetDescriptorHeap(DescriptorHeapType::DSV);
+	ComPtr<ID3D12Device2> device = m_owner->m_device;
+	device->CreateDepthStencilView(m_handle, &dsvDesc, dsvDescriptorHeap->GetNextCPUHandle());
+	m_createdViews |= TextureBindFlagBit::TEXTURE_BIND_DEPTH_STENCIL_BIT;
+}
+
+void Texture::CheckOrCreateView(TextureBindFlagBit viewType)
+{
+	// If bit is set, view has been created
+	if (viewType & m_createdViews) return;
+	if (!(m_creationInfo.m_bindFlags & viewType)) {
+		ERROR_RECOVERABLE(Stringf("VIEW NOT COMPATIBLE: %d", viewType));
+	}
+
+	switch (viewType)
+	{
+	case TEXTURE_BIND_SHADER_RESOURCE_BIT:
+		CreateShaderResourceView();
+		break;
+	case TEXTURE_BIND_RENDER_TARGET_BIT:
+		CreateRenderTargetView();
+		break;
+	case TEXTURE_BIND_DEPTH_STENCIL_BIT:
+		CreateDepthStencilView();
+		break;
+		/*case TEXTURE_BIND_UNORDERED_ACCESS_VIEW_BIT:
+			break;*/
+	default:
+		ERROR_AND_DIE(Stringf("UNSUPPORTED TEXTURE VIEW: %d", viewType));
+		break;
+	}
+}
+
+IntVec2 Texture::GetDimensions() const
+{
+	return m_creationInfo.m_dimensions;
+}

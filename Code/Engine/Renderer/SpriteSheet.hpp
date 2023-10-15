@@ -4,7 +4,7 @@
 #include <vector>
 
 struct Vec2;
-
+struct AABB2;
 class SpriteSheet;
 class SpriteAnimGroupDefinition;
 

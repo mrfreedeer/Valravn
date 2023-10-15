@@ -1,15 +1,17 @@
 #include "Engine/Renderer/Renderer.hpp"
-#include "Engine/Core/ErrorWarningAssert.hpp"
-#include "Engine/Window/Window.hpp"
-#include "Engine/Core/FileUtils.hpp"
 #include "Engine/Renderer/DefaultShader.hpp"
-#include "Engine/Core/Vertex_PCU.hpp"
 #include "Engine/Renderer/VertexBuffer.hpp"
 #include "Engine/Renderer/Shader.hpp"
-#include "Engine/Core/EngineCommon.hpp"
-#include <dxgidebug.h>
-#include "Engine/Math/Vec4.hpp"
+#include "Engine/Renderer/Texture.hpp"
 #include "Engine/Renderer/GraphicsCommon.hpp"
+#include "Engine/Renderer/D3D12/D3D12TypeConversions.hpp"
+#include "Engine/Window/Window.hpp"
+#include "Engine/Core/ErrorWarningAssert.hpp"
+#include "Engine/Core/FileUtils.hpp"
+#include "Engine/Core/Vertex_PCU.hpp"
+#include "Engine/Core/EngineCommon.hpp"
+#include "Engine/Math/Vec4.hpp"
+#include <dxgidebug.h>
 #include <d3dx12.h> // Notice the X. These are the helper structures not the DX12 header
 
 DXGI_FORMAT GetFormatForComponent(D3D_REGISTER_COMPONENT_TYPE componentType, char const* semanticnName, BYTE mask) {
@@ -286,10 +288,13 @@ void Renderer::CreateRenderTargetViews()
 	// Handle size is vendor specific
 	m_RTVdescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	// Get a helper handle to the descriptor and create the RTVs 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_RTVdescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
+
 
 	m_backBuffers.resize(m_config.m_backBuffersCount);
 	for (unsigned int frameBufferInd = 0; frameBufferInd < m_config.m_backBuffersCount; frameBufferInd++) {
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvDescriptorHeap->GetNextCPUHandle();
 		ComPtr<ID3D12Resource2>& backBuffer = m_backBuffers[frameBufferInd];
 		HRESULT fetchBuffer = m_swapChain->GetBuffer(frameBufferInd, IID_PPV_ARGS(&backBuffer));
 		if (!SUCCEEDED(fetchBuffer)) {
@@ -297,7 +302,7 @@ void Renderer::CreateRenderTargetViews()
 		}
 
 		m_device->CreateRenderTargetView(backBuffer.Get(), nullptr, rtvHandle);
-		rtvHandle.Offset(m_RTVdescriptorSize);
+		//rtvHandle.Offset(m_RTVdescriptorSize);
 
 	}
 
@@ -371,21 +376,20 @@ void Renderer::CreateDefaultRootSignature()
 	HRESULT rootSignatureSerialization = D3D12SerializeVersionedRootSignature(&rootSignature, signature.GetAddressOf(), error.GetAddressOf());
 	ThrowIfFailed(rootSignatureSerialization, "COULD NOT SERIALIZE ROOT SIGNATURE");
 	ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)), "COULD NOT CREATE ROOT SIGNATURE");
-	SetDebugName(m_rootSignature, "DEFAULTROOTSIGNATURE"); 
+	SetDebugName(m_rootSignature, "DEFAULTROOTSIGNATURE");
 
-	m_defaultDescriptorHeaps.resize(1);
-	CreateDescriptorHeap(m_defaultDescriptorHeaps[0], D3D12_DESCRIPTOR_HEAP_TYPE::D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, true);
+
 	//CreateDescriptorHeap(m_defaultDescriptorHeaps[1], D3D12_DESCRIPTOR_HEAP_TYPE::D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1, true);
 
 	auto descriptorsize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	// Get a helper handle to the descriptor and create the RTVs 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_defaultDescriptorHeaps[0]->GetCPUDescriptorHandleForHeapStart());
+	/*CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_defaultDescriptorHeaps[0]->GetCPUDescriptorHandleForHeapStart());
 	D3D12_SHADER_RESOURCE_VIEW_DESC bsDesc = {};
 	bsDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	bsDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	bsDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	m_device->CreateShaderResourceView(nullptr, &bsDesc, descriptorHandle);
-	descriptorHandle.Offset(descriptorsize);
+	descriptorHandle.Offset(descriptorsize);*/
 }
 
 unsigned int Renderer::SignalFence(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int& fenceValue)
@@ -448,7 +452,17 @@ void Renderer::Startup()
 	adapter.Reset();
 	CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 	CreateSwapChain();
-	CreateDescriptorHeap(m_RTVdescriptorHeap, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, m_config.m_backBuffersCount + 1); // Backbufers + default
+
+	m_defaultDescriptorHeaps.resize((size_t)DescriptorHeapType::NUM_DESCRIPTOR_HEAPS);
+
+	/// <summary>
+	/// Recommendation here is to have a large pool of descriptors and use them ring buffer style
+	/// </summary>
+	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::SRV_UAV_CBV] = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, 2048);
+	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::RTV] = new DescriptorHeap(this, DescriptorHeapType::RTV, 1024);
+	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::DSV] = new DescriptorHeap(this, DescriptorHeapType::DSV, 8);
+	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::SAMPLER] = new DescriptorHeap(this, DescriptorHeapType::SAMPLER, 64);
+
 	CreateRenderTargetViews();
 
 	m_commandAllocators.resize(m_config.m_backBuffersCount + 1);
@@ -672,15 +686,35 @@ void Renderer::SetDebugName(ID3D12Object* object, char const* name)
 
 void Renderer::DrawImmediateBuffers()
 {
+	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
+	DescriptorHeap* srvUAVCBVHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
+	DescriptorHeap* samplerHeap = GetDescriptorHeap(DescriptorHeapType::SAMPLER);
+	ID3D12DescriptorHeap* allDescriptorHeaps [] = {
+		srvUAVCBVHeap->GetHeap(),
+		samplerHeap->GetHeap()
+	};
+
+	UINT numHeaps = sizeof(allDescriptorHeaps) / sizeof(ID3D12DescriptorHeap*);
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
-	m_commandList->SetDescriptorHeaps(m_defaultDescriptorHeaps.size(), m_defaultDescriptorHeaps.data());
-	m_commandList->SetGraphicsRootDescriptorTable(0, m_defaultDescriptorHeaps[0]->GetGPUDescriptorHandleForHeapStart());
-	//m_commandList->SetGraphicsRootDescriptorTable(1, m_defaultDescriptorHeaps[1]->GetGPUDescriptorHandleForHeapStart());
+	m_commandList->SetDescriptorHeaps(numHeaps, allDescriptorHeaps);
+
+
+	m_commandList->SetGraphicsRootDescriptorTable(0, srvUAVCBVHeap->GetGPUHandleForHeapStart());
+	m_commandList->SetGraphicsRootDescriptorTable(1, srvUAVCBVHeap->GetGPUHandleForHeapStart());
+	m_commandList->SetGraphicsRootDescriptorTable(2, samplerHeap->GetGPUHandleForHeapStart());
+
+	//for (int heapIndex = 0; heapIndex < allDescriptorHeaps.size(); heapIndex++) {
+	//	ID3D12DescriptorHeap* currentDescriptorHeap = allDescriptorHeaps[heapIndex];
+	//	m_commandList->SetGraphicsRootDescriptorTable(heapIndex, currentDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	//}
 
 	m_commandList->RSSetViewports(1, &m_viewport);
 	m_commandList->RSSetScissorRects(1, &m_scissorRect);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_RTVdescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
-	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+	// Later, each texture has its handle
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = rtvDescriptorHeap->GetHandleAtOffset(m_currentBackBuffer);
+	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
+	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, nullptr);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	D3D12_VERTEX_BUFFER_VIEW D3DbufferView = {};
@@ -757,6 +791,11 @@ void Renderer::WaitForGPU()
 
 }
 
+DescriptorHeap* Renderer::GetDescriptorHeap(DescriptorHeapType descriptorHeapType)
+{
+	return m_defaultDescriptorHeaps[(size_t)descriptorHeapType];
+}
+
 void Renderer::CreateViewport()
 {
 
@@ -764,8 +803,35 @@ void Renderer::CreateViewport()
 	m_scissorRect = CD3DX12_RECT(0, 0, static_cast<long>(m_config.m_window->GetClientDimensions().x), static_cast<long>(m_config.m_window->GetClientDimensions().y));
 
 }
+
+Texture* Renderer::CreateTexture(TextureCreateInfo const& creationInfo)
+{
+	ID3D12Resource2* handle = creationInfo.m_handle;
+
+	if (handle) {
+		handle->AddRef();
+	}
+	else {
+		D3D12_RESOURCE_DESC1 textureDesc = {};
+		textureDesc.Width = (UINT64)creationInfo.m_dimensions.x;
+		textureDesc.Height = (UINT64)creationInfo.m_dimensions.y;
+		textureDesc.MipLevels = 1;
+		textureDesc.DepthOrArraySize = 1;
+		textureDesc.Format = LocalToD3D12(creationInfo.m_format);
+		textureDesc.Flags = LocalToD3D12(creationInfo.m_bindFlags);
+		textureDesc.SampleDesc.Count = 1;
+		textureDesc.SampleDesc.Quality = 0;
+		textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	}
+
+	return nullptr;
+}
+
 void Renderer::BeginFrame()
 {
+
+	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
+
 	// Command list allocators can only be reset when the associated 
   // command lists have finished execution on the GPU; apps should use 
   // fences to determine GPU execution progress.
@@ -780,12 +846,14 @@ void Renderer::BeginFrame()
 	CD3DX12_RESOURCE_BARRIER resourceBarrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	m_commandList->ResourceBarrier(1, &resourceBarrierRTV);
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_RTVdescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
-	m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = rtvDescriptorHeap->GetHandleAtOffset(m_currentBackBuffer);
+
+	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
+	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, nullptr);
 
 	// Record commands.
 	const float clearColor[] = { 0.0f, 0.2f, 0.4f, 1.0f };
-	m_commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+	m_commandList->ClearRenderTargetView(currentRTVHandle, clearColor, 0, nullptr);
 
 #if defined(ENGINE_USE_IMGUI)
 	ImGui_ImplDX11_NewFrame();
@@ -847,9 +915,9 @@ void Renderer::Shutdown()
 
 	m_pipelineState.Reset();
 	m_fence.Reset();
-	DX_SAFE_RELEASE(m_RTVdescriptorHeap);
-	for (ID3D12DescriptorHeap* descriptorHeap : m_defaultDescriptorHeaps) {
-		DX_SAFE_RELEASE(descriptorHeap);
+	for (DescriptorHeap*& descriptorHeap : m_defaultDescriptorHeaps) {
+		delete descriptorHeap;
+		descriptorHeap = nullptr;
 	}
 	m_commandList.Reset();
 	m_rootSignature.Reset();
@@ -867,6 +935,8 @@ void Renderer::Shutdown()
 
 void Renderer::ClearScreen(Rgba8 const& color)
 {
+	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
+
 	float colorAsArray[4];
 	color.GetAsFloats(colorAsArray);
 	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -876,9 +946,12 @@ void Renderer::ClearScreen(Rgba8 const& color)
 	);
 
 	m_commandList->ResourceBarrier(1, &barrier);
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescHandle(m_RTVdescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-		m_currentBackBuffer, m_RTVdescriptorSize);
-	m_commandList->ClearRenderTargetView(rtvDescHandle, colorAsArray, 0, nullptr);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = rtvDescriptorHeap->GetHandleAtOffset(m_currentBackBuffer);
+
+	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+	//	m_currentBackBuffer, m_RTVdescriptorSize);
+	m_commandList->ClearRenderTargetView(currentRTVHandle, colorAsArray, 0, nullptr);
 
 
 }

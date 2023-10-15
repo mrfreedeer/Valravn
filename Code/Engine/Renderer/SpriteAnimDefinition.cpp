@@ -1,5 +1,6 @@
 #include "Engine/Renderer/SpriteAnimDefinition.hpp"
 #include "Engine/Renderer/DebugRendererSystem.hpp"
+#include "Engine/Core/EngineCommon.hpp"
 
 SpriteAnimDefinition::SpriteAnimDefinition(const SpriteSheet& sheet, int startSpriteIndex, int endSpriteIndex, float durationSeconds, SpriteAnimPlaybackType playbackType, Vec3 const& direction, Shader* shader) :
 	m_spriteSheet(sheet),

@@ -2,6 +2,7 @@
 
 #include "Engine/Math/Vec3.hpp"
 #include "Engine/Math/Mat44.hpp"
+#include "Engine/Renderer/D3D12/DescriptorHeap.hpp"
 #include "Game/EngineBuildPreferences.hpp"
 #include <filesystem>
 #include <cstdint>
@@ -28,11 +29,15 @@ class Shader;
 class VertexBuffer;
 struct Rgba8;
 struct Vertex_PCU;
+class Texture;
+struct TextureCreateInfo;
 
 struct RendererConfig {
 	Window* m_window = nullptr;
 	unsigned int m_backBuffersCount = 2;
 };
+
+
 
 
 struct Light
@@ -78,6 +83,8 @@ struct LiveObjectReporter {
 
 class Renderer {
 	friend class Buffer;
+	friend class Texture;
+	friend class DescriptorHeap;
 public:
 	Renderer(RendererConfig const& config);
 	~Renderer();
@@ -95,6 +102,7 @@ public:
 	void SetModelColor(Rgba8 const& modelColor);
 	void ExecuteCommandLists(ID3D12CommandList** commandLists, unsigned int count);
 	void WaitForGPU();
+	DescriptorHeap* GetDescriptorHeap(DescriptorHeapType descriptorHeapType);
 private:
 
 	// DX12 Initialization
@@ -122,13 +130,16 @@ private:
 	ComPtr<ID3D12Resource2> GetBackUpColorTarget() const;
 
 
-	// Shaders
+	// Shaders & Resources
 	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std::vector<D3D12_SIGNATURE_PARAMETER_DESC>& elementsDescs);
 	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* name, char const* source, char const* entryPoint, char const* target, bool isAntialiasingOn);
 	Shader* CreateShader(std::filesystem::path shaderName);
 	Shader* CreateShader(char const* shaderName, char const* shaderSource);
 	Shader* GetShaderForName(char const* shaderName);
 	void CreateViewport();
+	Texture* CreateTexture(TextureCreateInfo const& creationInfo);
+
+
 	// General
 	void SetDebugName(ID3D12Object* object, char const* name);
 	template<typename T_Object>
@@ -155,14 +166,15 @@ private:
 	/// </summary>
 	ComPtr<ID3D12GraphicsCommandList2> m_bufferCommandList;
 	std::vector<ComPtr<ID3D12CommandAllocator>> m_commandAllocators;
-	ID3D12DescriptorHeap* m_RTVdescriptorHeap;
-	std::vector<ID3D12DescriptorHeap*> m_defaultDescriptorHeaps;
+	//ID3D12DescriptorHeap* m_RTVdescriptorHeap;
+	std::vector<DescriptorHeap*> m_defaultDescriptorHeaps;
 	ComPtr<ID3D12Fence1> m_fence;
 	ComPtr<IDXGIFactory4> m_dxgiFactory;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 
 	std::vector<Shader*> m_loadedShaders;
 	std::vector<VertexBuffer*> m_immediateBuffers;
+	std::vector<Texture*> m_loadedTextures;
 	Shader* m_defaultShader = nullptr;
 	D3D12_VIEWPORT m_viewport;
 	D3D12_RECT m_scissorRect;

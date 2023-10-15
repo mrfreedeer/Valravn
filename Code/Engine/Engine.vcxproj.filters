@@ -313,6 +313,12 @@
     <ClCompile Include="Core\Buffer.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="Renderer\D3D12\D3D12TypeConversions.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer\D3D12\DescriptorHeap.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Math\Vec2.hpp">
@@ -657,6 +663,10 @@
     <ClInclude Include="Core\Buffer.hpp">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="Renderer\D3D12\D3D12TypeConversions.hpp">
+      <Filter>Renderer\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Renderer\D3D12\DescriptorHeap.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

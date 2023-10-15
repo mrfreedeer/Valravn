@@ -1,5 +1,9 @@
 #pragma once
 #include "Engine/Renderer/SpriteSheet.hpp"
+#include "Engine/Math/Vec3.hpp"
+#include "Engine/Math/MathUtils.hpp"
+#include "ThirdParty/TinyXML2/tinyxml2.h"
+
 
 class Shader;
 typedef tinyxml2::XMLElement XMLElement;
