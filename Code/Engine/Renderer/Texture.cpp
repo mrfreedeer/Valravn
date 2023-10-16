@@ -8,14 +8,22 @@
 
 
 Texture::Texture(TextureCreateInfo const& createInfo) :
+	m_name(createInfo.m_name),
 	m_creationInfo(createInfo),
 	m_owner(createInfo.m_owner)
 {
 }
 
+Texture::Texture()
+{
+
+}
+
 Texture::~Texture()
 {
-	delete m_handle;
+	if (m_handle) {
+		delete m_handle;
+	}
 }
 
 ResourceView* Texture::CreateShaderResourceView()
@@ -30,7 +38,7 @@ ResourceView* Texture::CreateShaderResourceView()
 	srvDesc->Format = LocalToD3D12(m_creationInfo.m_format);
 	srvDesc->ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc->Texture2D.MipLevels = 1;
-	
+
 	ResourceViewInfo viewInfo = {};
 	viewInfo.m_srvDesc = srvDesc;
 	viewInfo.m_viewType = RESOURCE_BIND_SHADER_RESOURCE_BIT;
@@ -105,7 +113,7 @@ ResourceView* Texture::GetOrCreateView(ResourceBindFlagBit viewType)
 		ERROR_AND_DIE(Stringf("UNSUPPORTED VIEW %d", viewType));
 		break;
 	}
-	
+
 }
 
 IntVec2 Texture::GetDimensions() const
@@ -116,6 +124,11 @@ IntVec2 Texture::GetDimensions() const
 Resource* Texture::GetResource() const
 {
 	return m_handle;
+}
+
+ID3D12Resource* Texture::GetRawResource() const
+{
+	return m_handle->m_resource;
 }
 
 Rgba8 const Texture::GetClearColour() const

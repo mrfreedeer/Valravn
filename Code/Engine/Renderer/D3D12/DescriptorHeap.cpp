@@ -57,6 +57,11 @@ D3D12_GPU_DESCRIPTOR_HANDLE DescriptorHeap::GetGPUHandleForHeapStart()
 	return m_descriptorHeap->GetGPUDescriptorHandleForHeapStart();
 }
 
+D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeap::GetCPUHandleForHeapStart()
+{
+	return m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+}
+
 DescriptorHeap::~DescriptorHeap()
 {
 	DX_SAFE_RELEASE(m_descriptorHeap);

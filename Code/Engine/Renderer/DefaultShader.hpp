@@ -1,4 +1,18 @@
 const char* g_defaultShaderSource = R"(
+cbuffer CameraConstants : register(b2) {
+	float4x4 ProjectionMatrix;
+	float4x4 ViewMatrix;
+};
+
+cbuffer ModelConstants: register(b3){
+	float4x4 ModelMatrix;
+	float4 ModelColor;
+	float4 ModelPadding;
+}
+
+Texture2D diffuseTexture: register(t0);
+SamplerState diffuseSampler: register(s0);
+
 struct PSInput
 {
     float4 position : SV_POSITION;
@@ -24,9 +38,12 @@ PSInput VertexMain(vs_input_t input)
     return result;
 }
 
-float4 PixelMain(PSInput input) : SV_TARGET
+
+float4 PixelMain(PSInput input) : SV_TARGET0
 {
-    return input.color;
+    float4 resultingColor = diffuseTexture.Sample(diffuseSampler, input.uv) * input.color;
+    if(resultingColor.w <= 0.01f) discard;
+    return resultingColor;
 })";
 
 //const char* g_defaultShaderSource = R"(

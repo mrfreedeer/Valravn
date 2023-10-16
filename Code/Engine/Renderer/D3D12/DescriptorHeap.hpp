@@ -23,6 +23,7 @@ public:
 	D3D12_CPU_DESCRIPTOR_HANDLE GetHandleAtOffset(size_t offset);
 	ID3D12DescriptorHeap* GetHeap() { return m_descriptorHeap; }
 	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUHandleForHeapStart();
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUHandleForHeapStart();
 	DescriptorHeapType GetHeapType() const { return m_type; }
 private:
 	Renderer* m_owner = nullptr;

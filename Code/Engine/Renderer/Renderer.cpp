@@ -3,6 +3,7 @@
 #include "Engine/Renderer/VertexBuffer.hpp"
 #include "Engine/Renderer/Shader.hpp"
 #include "Engine/Renderer/Texture.hpp"
+#include "Engine/Core/Image.hpp"
 #include "Engine/Renderer/D3D12/Resource.hpp"
 #include "Engine/Renderer/GraphicsCommon.hpp"
 #include "Engine/Renderer/D3D12/D3D12TypeConversions.hpp"
@@ -302,9 +303,9 @@ void Renderer::CreateRenderTargetViewsForBackBuffers()
 			ERROR_AND_DIE("COULD NOT GET FRAME BUFFER");
 		}
 
-		 D3D12_RESOURCE_DESC bufferTexDesc = bufferTex->GetDesc();
+		D3D12_RESOURCE_DESC bufferTexDesc = bufferTex->GetDesc();
 
-		 TextureCreateInfo backBufferTexInfo = {};
+		TextureCreateInfo backBufferTexInfo = {};
 		backBufferTexInfo.m_bindFlags = ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT;
 		backBufferTexInfo.m_dimensions = IntVec2(bufferTexDesc.Width, bufferTexDesc.Height);
 		backBufferTexInfo.m_format = TextureFormat::R8G8B8A8_UNORM;
@@ -366,22 +367,25 @@ void Renderer::CreateDefaultRootSignature()
 	 * Sampler
 	 * #TODO programatically define more complex root signatures. Perhaps just really on the HLSL definition?
 	 */
-	CD3DX12_DESCRIPTOR_RANGE1 descriptorRange[3] = {};
-	// YES. THE -1 IS not an error in UINT. It means unbounded
-	descriptorRange[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, (UINT)-1, 0, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
-	descriptorRange[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, (UINT)-1, 0, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
-	descriptorRange[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0, 1, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
+
+	D3D12_DESCRIPTOR_RANGE1 descriptorRanges[3] = {};
+	descriptorRanges[0] = { D3D12_DESCRIPTOR_RANGE_TYPE_CBV, UINT_MAX, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, 0 };
+	descriptorRanges[1] = { D3D12_DESCRIPTOR_RANGE_TYPE_SRV, UINT_MAX, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, 0 };
+	descriptorRanges[2] = { D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, UINT_MAX, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, 0 };
+	
 
 	// Base parameters, initial at the root table. Could be a descriptor, or a pointer to descriptor 
 	// In this case, one descriptor table per slot in the first 3
+
 	CD3DX12_ROOT_PARAMETER1 rootParameters[3] = {};
 
-	rootParameters[0].InitAsDescriptorTable(1, &descriptorRange[0], D3D12_SHADER_VISIBILITY_ALL);
-	rootParameters[1].InitAsDescriptorTable(1, &descriptorRange[1], D3D12_SHADER_VISIBILITY_ALL);
-	rootParameters[2].InitAsDescriptorTable(1, &descriptorRange[2], D3D12_SHADER_VISIBILITY_ALL);
+	rootParameters[0].InitAsDescriptorTable(1, &descriptorRanges[0], D3D12_SHADER_VISIBILITY_ALL);
+	rootParameters[1].InitAsDescriptorTable(1, &descriptorRanges[1], D3D12_SHADER_VISIBILITY_ALL);
+	rootParameters[2].InitAsDescriptorTable(1, &descriptorRanges[2], D3D12_SHADER_VISIBILITY_PIXEL);
 
-	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignature(3, rootParameters);
+	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignature(_countof(descriptorRanges), rootParameters);
 	rootSignature.Desc_1_2.Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	rootSignature.Desc_1_2.Flags |= D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
 
 	//rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 	//ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error), "COULD NOT SERIALIZE ROOT SIGNATURE");
@@ -503,14 +507,14 @@ void Renderer::Startup()
 
 	CreateRenderTargetViewsForBackBuffers();
 	CreateDefaultTextureTargets();
-	
+
 
 	m_commandAllocators.resize(m_config.m_backBuffersCount + 1);
 	for (unsigned int frameIndex = 0; frameIndex < m_config.m_backBuffersCount; frameIndex++) {
 		CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[frameIndex]);
 	}
 	CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_commandAllocators.size() - 1]);
-	CreateCommandList(m_bufferCommandList, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_commandAllocators.size() - 1]);
+	CreateCommandList(m_ResourcesCommandList, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_commandAllocators.size() - 1]);
 
 	CreateDefaultRootSignature();
 	m_defaultShader = CreateShader("Default", g_defaultShaderSource);
@@ -518,15 +522,23 @@ void Renderer::Startup()
 	CreateCommandList(m_commandList, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_currentBackBuffer]);
 
 	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE DEFAULT COMMAND LIST");
-	ThrowIfFailed(m_bufferCommandList->Close(), "COULT NOT CLOSE INTERNAL BUFFER COMMAND LIST");
+	ThrowIfFailed(m_ResourcesCommandList->Close(), "COULT NOT CLOSE INTERNAL BUFFER COMMAND LIST");
 
 
 	CreateFence();
 
 	m_fenceValues[m_currentBackBuffer]++;
 	CreateFenceEvent();
+	SetSamplerMode(SamplerMode::POINTCLAMP);
 
-	
+	m_ResourcesCommandList->Reset(m_commandAllocators[m_commandAllocators.size() - 1].Get(), nullptr);
+	m_commandList->Reset(m_commandAllocators[m_currentBackBuffer].Get(), nullptr);
+
+	m_defaultTexture = new Texture();
+	Image whiteTexelImg(IntVec2(1, 1), Rgba8::WHITE);
+	whiteTexelImg.m_imageFilePath = "DefaultTexture";
+	m_defaultTexture = CreateTextureFromImage(whiteTexelImg);
+
 }
 
 
@@ -734,7 +746,7 @@ void Renderer::DrawImmediateBuffers()
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
 	DescriptorHeap* srvUAVCBVHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
 	DescriptorHeap* samplerHeap = GetDescriptorHeap(DescriptorHeapType::SAMPLER);
-	ID3D12DescriptorHeap* allDescriptorHeaps [] = {
+	ID3D12DescriptorHeap* allDescriptorHeaps[] = {
 		srvUAVCBVHeap->GetHeap(),
 		samplerHeap->GetHeap()
 	};
@@ -780,7 +792,7 @@ void Renderer::DrawImmediateBuffers()
 
 ComPtr<ID3D12GraphicsCommandList2> Renderer::GetBufferCommandList()
 {
-	return m_bufferCommandList;
+	return m_ResourcesCommandList;
 }
 
 Shader* Renderer::CreateOrGetShader(std::filesystem::path shaderName)
@@ -796,6 +808,19 @@ Shader* Renderer::CreateOrGetShader(std::filesystem::path shaderName)
 	return shaderSearched;
 }
 
+
+Texture* Renderer::CreateOrGetTextureFromFile(char const* imageFilePath)
+{
+	Texture* existingTexture = GetTextureForFileName(imageFilePath);
+	if (existingTexture)
+	{
+		return existingTexture;
+	}
+
+	// Never seen this texture before!  Let's load it.
+	Texture* newTexture = CreateTextureFromFile(imageFilePath);
+	return newTexture;
+}
 
 void Renderer::DrawVertexArray(std::vector<Vertex_PCU> const& vertexes)
 {
@@ -878,20 +903,52 @@ Texture* Renderer::CreateTexture(TextureCreateInfo& creationInfo)
 		}
 		handle = new Resource();
 		handle->m_currentState = initialResourceState;
-		D3D12_CLEAR_VALUE clearValue = {};
-		creationInfo.m_clearColour.GetAsFloats(clearValue.Color) ;
-		clearValue.Format = LocalToD3D12(creationInfo.m_clearFormat);
+		D3D12_CLEAR_VALUE clearValueRT = {};
+		D3D12_CLEAR_VALUE* clearValue = NULL;
+
+		// If it can be bound as RT then it needs the clear colour, otherwise it's null
+		if (creationInfo.m_bindFlags & RESOURCE_BIND_RENDER_TARGET_BIT) {
+			creationInfo.m_clearColour.GetAsFloats(clearValueRT.Color);
+			clearValueRT.Format = LocalToD3D12(creationInfo.m_clearFormat);
+			clearValue = &clearValueRT;
+		}
 
 		HRESULT textureCreateHR = m_device->CreateCommittedResource(
 			&heapType,
 			D3D12_HEAP_FLAG_NONE,
 			&textureDesc,
 			initialResourceState,
-			&clearValue,
+			clearValue,
 			IID_PPV_ARGS(&handle->m_resource)
 		);
 
-		
+		if (creationInfo.m_initialData) {
+			ID3D12Resource* textureUploadHeap;
+			UINT64  const uploadBufferSize = GetRequiredIntermediateSize(handle->m_resource, 0, 1);
+			CD3DX12_RESOURCE_DESC uploadHeapDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+			CD3DX12_HEAP_PROPERTIES heapProperties(D3D12_HEAP_TYPE_UPLOAD);
+
+			HRESULT createUploadHeap = m_device->CreateCommittedResource(
+				&heapProperties,
+				D3D12_HEAP_FLAG_NONE,
+				&uploadHeapDesc,
+				D3D12_RESOURCE_STATE_GENERIC_READ,
+				nullptr,
+				IID_PPV_ARGS(&textureUploadHeap));
+
+			ThrowIfFailed(createUploadHeap, "FAILED TO CREATE TEXTURE UPLOAD HEAP");
+			SetDebugName(textureUploadHeap, "UplHeap");
+
+			D3D12_SUBRESOURCE_DATA imageData = {};
+			imageData.pData = creationInfo.m_initialData;
+			imageData.RowPitch = creationInfo.m_stride;
+			UpdateSubresources(m_commandList.Get(), handle->m_resource, textureUploadHeap, 0, 0, 1, &imageData);
+			handle->TransitionTo(D3D12_RESOURCE_STATE_COMMON, m_commandList.Get());
+
+			m_frameUploadHeaps.push_back(textureUploadHeap);
+			m_uploadRequested = true;
+		}
+
 		std::string const errorMsg = Stringf("COULD NOT CREATE TEXTURE WITH NAME %s", creationInfo.m_name.c_str());
 		ThrowIfFailed(textureCreateHR, errorMsg.c_str());
 	}
@@ -904,9 +961,48 @@ Texture* Renderer::CreateTexture(TextureCreateInfo& creationInfo)
 	return newTexture;
 }
 
+Texture* Renderer::GetTextureForFileName(char const* imageFilePath)
+{
+
+	Texture* textureToGet = nullptr;
+
+	for (Texture*& loadedTexture : m_loadedTextures) {
+		if (loadedTexture->GetImageFilePath() == imageFilePath) {
+			return loadedTexture;
+		}
+	}
+	return textureToGet;
+}
+
+Texture* Renderer::CreateTextureFromFile(char const* imageFilePath)
+{
+	Image loadedImage(imageFilePath);
+	Texture* newTexture = CreateTextureFromImage(loadedImage);
+
+	return newTexture;
+}
+
+Texture* Renderer::CreateTextureFromImage(Image const& image)
+{
+	TextureCreateInfo ci{};
+	ci.m_owner = this;
+	ci.m_name = image.GetImageFilePath();
+	ci.m_dimensions = image.GetDimensions();
+	ci.m_initialData = image.GetRawData();
+	ci.m_stride = sizeof(Rgba8);
+
+
+	Texture* newTexture = CreateTexture(ci);
+	SetDebugName(newTexture->GetResource()->m_resource, newTexture->m_name.c_str());
+
+	//m_loadedTextures.push_back(newTexture);
+
+	return newTexture;
+}
+
 ResourceView* Renderer::CreateShaderResourceView(ResourceViewInfo const& viewInfo) const
 {
-	
+
 	DescriptorHeap* srvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = srvDescriptorHeap->GetNextCPUHandle();
@@ -948,6 +1044,67 @@ ResourceView* Renderer::CreateDepthStencilView(ResourceViewInfo const& viewInfo)
 	return newResourceView;
 }
 
+void Renderer::SetSamplerMode(SamplerMode samplerMode)
+{
+	D3D12_SAMPLER_DESC samplerDesc = {};
+	switch (samplerMode)
+	{
+	case SamplerMode::POINTCLAMP:
+		samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+		samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+
+		break;
+	case SamplerMode::POINTWRAP:
+		samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+		samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+
+		break;
+	case SamplerMode::BILINEARCLAMP:
+		samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+
+		break;
+	case SamplerMode::BILINEARWRAP:
+		samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		break;
+
+	case SamplerMode::SHADOWMAPS:
+		samplerDesc.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+		samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		samplerDesc.BorderColor[0] = 0.0f;
+		samplerDesc.BorderColor[1] = 0.0f;
+		samplerDesc.BorderColor[2] = 0.0f;
+		samplerDesc.BorderColor[3] = 0.0f;
+
+		break;
+	default:
+		break;
+	}
+	samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+	DescriptorHeap* samplerHeap = GetDescriptorHeap(DescriptorHeapType::SAMPLER);
+
+	m_device->CreateSampler(&samplerDesc, samplerHeap->GetHandleAtOffset(0));
+	//if (!SUCCEEDED(samplerStateCreationResult)) {
+	//	ERROR_AND_DIE("ERROR CREATING SAMPLER STATE");
+	//}
+}
+
 ResourceView* Renderer::CreateTextureView(ResourceViewInfo const& resourceViewInfo) const
 {
 	switch (resourceViewInfo.m_viewType)
@@ -968,8 +1125,34 @@ ResourceView* Renderer::CreateTextureView(ResourceViewInfo const& resourceViewIn
 	return nullptr;
 }
 
+void Renderer::BindTexture(Texture* textureToBind, unsigned int slot)
+{
+	Texture* usedTex = textureToBind;
+	if (!textureToBind) {
+		usedTex = m_defaultTexture;
+	}
+
+	ResourceView* rsv = usedTex->GetOrCreateView(RESOURCE_BIND_SHADER_RESOURCE_BIT);
+	DescriptorHeap* srvHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
+	//m_device->CopyDescriptorsSimple(1, srvHeap->GetCPUHandleForHeapStart(), rsv->GetHandle(), LocalToD3D12(DescriptorHeapType::SRV_UAV_CBV));
+}
+
 void Renderer::BeginFrame()
 {
+	if (m_uploadRequested) {
+		//WaitForGPU();
+		m_commandList->Close();
+		ID3D12CommandList* commLists[1] = { m_commandList.Get() };
+		ExecuteCommandLists(commLists, 1);
+		WaitForGPU();
+		for (ID3D12Resource*& uploadHeap : m_frameUploadHeaps) {
+			DX_SAFE_RELEASE(uploadHeap);
+			uploadHeap = nullptr;
+		}
+		m_frameUploadHeaps.resize(0);
+		m_uploadRequested = false;
+	}
+
 	Texture* currentRt = GetActiveColorTarget();
 	Resource* activeRTResource = currentRt->GetResource();
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
@@ -984,6 +1167,7 @@ void Renderer::BeginFrame()
 	// re-recording.
 	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_currentBackBuffer].Get(), m_defaultShader->m_PSO), "COULD NOT RESET COMMAND LIST");
 
+	BindTexture(nullptr);
 	activeRTResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 	// Indicate that the back buffer will be used as a render target.
 	//CD3DX12_RESOURCE_BARRIER resourceBarrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(m_backBuffers[m_currentBackBuffer].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -1033,6 +1217,7 @@ void Renderer::EndFrame()
 	m_commandList->ResourceBarrier(1, &barrier);*/
 
 	// Close command list
+	//ThrowIfFailed(m_ResourcesCommandList->Close(), "COULD NOT CLOSE RESOURCES COMMAND LIST");
 	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
 
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
@@ -1091,7 +1276,7 @@ void Renderer::Shutdown()
 	//m_dxgiFactory.Get()->Release();
 	m_dxgiFactory.Reset();
 
-	
+
 
 
 }

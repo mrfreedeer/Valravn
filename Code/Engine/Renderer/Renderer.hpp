@@ -22,8 +22,7 @@
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-
-
+enum class SamplerMode;
 
 class Window;
 class Shader;
@@ -32,6 +31,7 @@ struct Rgba8;
 struct Vertex_PCU;
 class Texture;
 struct TextureCreateInfo;
+class Image;
 
 struct RendererConfig {
 	Window* m_window = nullptr;
@@ -96,7 +96,7 @@ public:
 
 	void ClearScreen(Rgba8 const& color);
 	Shader* CreateOrGetShader(std::filesystem::path shaderName);
-
+	Texture* CreateOrGetTextureFromFile(char const* imageFilePath);
 	void DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes);
 	void DrawVertexArray(std::vector<Vertex_PCU> const& vertexes);
 	void SetModelMatrix(Mat44 const& modelMat);
@@ -105,6 +105,8 @@ public:
 	void WaitForGPU();
 	DescriptorHeap* GetDescriptorHeap(DescriptorHeapType descriptorHeapType) const;
 	ResourceView* CreateTextureView(ResourceViewInfo const& resourceViewInfo) const;
+
+	void BindTexture(Texture* textureToBind, unsigned int slot = 0);
 
 private:
 
@@ -142,9 +144,13 @@ private:
 	Shader* GetShaderForName(char const* shaderName);
 	void CreateViewport();
 	Texture* CreateTexture(TextureCreateInfo& creationInfo);
+	Texture* GetTextureForFileName(char const* imageFilePath);
+	Texture* CreateTextureFromFile(char const* imageFilePath);
+	Texture* CreateTextureFromImage(Image const& image);
 	ResourceView* CreateShaderResourceView(ResourceViewInfo const& viewInfo) const;
 	ResourceView* CreateRenderTargetView(ResourceViewInfo const& viewInfo) const;
 	ResourceView* CreateDepthStencilView(ResourceViewInfo const& viewInfo) const;
+	void SetSamplerMode(SamplerMode samplerMode);
 
 	// General
 	void SetDebugName(ID3D12Object* object, char const* name);
@@ -166,14 +172,16 @@ private:
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<IDXGISwapChain4> m_swapChain;
 	std::vector<Texture*> m_backBuffers;
-	Texture* m_defaultRenderTarget;
-	Texture* m_defaultDepthTarget;
+	Texture* m_defaultRenderTarget = nullptr;
+	Texture* m_defaultDepthTarget = nullptr;
+	Texture* m_defaultTexture = nullptr;
 	ComPtr<ID3D12GraphicsCommandList2> m_commandList;
 	/// <summary>
 	/// Command list dedicated to immediate need for whatever buffer related purposes
 	/// </summary>
-	ComPtr<ID3D12GraphicsCommandList2> m_bufferCommandList;
+	ComPtr<ID3D12GraphicsCommandList2> m_ResourcesCommandList;
 	std::vector<ComPtr<ID3D12CommandAllocator>> m_commandAllocators;
+	std::vector<ID3D12Resource*> m_frameUploadHeaps;
 	//ID3D12DescriptorHeap* m_RTVdescriptorHeap;
 	std::vector<DescriptorHeap*> m_defaultDescriptorHeaps;
 	ComPtr<ID3D12Fence1> m_fence;
@@ -193,6 +201,7 @@ private:
 	bool m_useWARP = false;
 	unsigned int m_antiAliasingLevel = 0;
 	unsigned int m_currentFrame = 0;
+	bool m_uploadRequested = false;
 };
 
 template<typename T_Object>
