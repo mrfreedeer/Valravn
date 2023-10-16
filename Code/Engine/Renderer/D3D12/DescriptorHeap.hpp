@@ -17,7 +17,7 @@ enum class DescriptorHeapType {
 
 class DescriptorHeap {
 public:
-	DescriptorHeap(Renderer* owner, DescriptorHeapType descType, size_t numDescriptors);
+	DescriptorHeap(Renderer* owner, DescriptorHeapType descType, size_t numDescriptors, bool visibleFromGPU = false);
 	~DescriptorHeap();
 	D3D12_CPU_DESCRIPTOR_HANDLE GetNextCPUHandle();
 	D3D12_CPU_DESCRIPTOR_HANDLE GetHandleAtOffset(size_t offset);

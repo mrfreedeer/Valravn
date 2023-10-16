@@ -372,7 +372,7 @@ void Renderer::CreateDefaultRootSignature()
 	descriptorRanges[0] = { D3D12_DESCRIPTOR_RANGE_TYPE_CBV, UINT_MAX, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, 0 };
 	descriptorRanges[1] = { D3D12_DESCRIPTOR_RANGE_TYPE_SRV, UINT_MAX, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, 0 };
 	descriptorRanges[2] = { D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, UINT_MAX, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, 0 };
-	
+
 
 	// Base parameters, initial at the root table. Could be a descriptor, or a pointer to descriptor 
 	// In this case, one descriptor table per slot in the first 3
@@ -501,10 +501,14 @@ void Renderer::Startup()
 	/// Recommendation here is to have a large pool of descriptors and use them ring buffer style
 	/// </summary>
 	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::SRV_UAV_CBV] = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, 2048);
+	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::SAMPLER] = new DescriptorHeap(this, DescriptorHeapType::SAMPLER, 64);
 	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::RTV] = new DescriptorHeap(this, DescriptorHeapType::RTV, 1024);
 	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::DSV] = new DescriptorHeap(this, DescriptorHeapType::DSV, 8);
-	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::SAMPLER] = new DescriptorHeap(this, DescriptorHeapType::SAMPLER, 64);
 
+	m_defaultGPUDescriptorHeaps.resize(2);
+
+	m_defaultGPUDescriptorHeaps[(size_t)DescriptorHeapType::SRV_UAV_CBV] = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, 2048, true);
+	m_defaultGPUDescriptorHeaps[(size_t)DescriptorHeapType::SAMPLER] = new DescriptorHeap(this, DescriptorHeapType::SAMPLER, 64, true);
 	CreateRenderTargetViewsForBackBuffers();
 	CreateDefaultTextureTargets();
 
@@ -744,8 +748,8 @@ void Renderer::DrawImmediateBuffers()
 	currentRtResc->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
-	DescriptorHeap* srvUAVCBVHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
-	DescriptorHeap* samplerHeap = GetDescriptorHeap(DescriptorHeapType::SAMPLER);
+	DescriptorHeap* srvUAVCBVHeap = GetGPUDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
+	DescriptorHeap* samplerHeap = GetGPUDescriptorHeap(DescriptorHeapType::SAMPLER);
 	ID3D12DescriptorHeap* allDescriptorHeaps[] = {
 		srvUAVCBVHeap->GetHeap(),
 		samplerHeap->GetHeap()
@@ -868,6 +872,12 @@ DescriptorHeap* Renderer::GetDescriptorHeap(DescriptorHeapType descriptorHeapTyp
 	return m_defaultDescriptorHeaps[(size_t)descriptorHeapType];
 }
 
+DescriptorHeap* Renderer::GetGPUDescriptorHeap(DescriptorHeapType descriptorHeapType) const
+{
+	if((size_t)descriptorHeapType > m_defaultGPUDescriptorHeaps.size()) return nullptr;
+	return m_defaultGPUDescriptorHeaps[(size_t)descriptorHeapType];
+}
+
 void Renderer::CreateViewport()
 {
 
@@ -941,7 +951,8 @@ Texture* Renderer::CreateTexture(TextureCreateInfo& creationInfo)
 
 			D3D12_SUBRESOURCE_DATA imageData = {};
 			imageData.pData = creationInfo.m_initialData;
-			imageData.RowPitch = creationInfo.m_stride;
+			imageData.RowPitch = creationInfo.m_stride * creationInfo.m_dimensions.x;
+			imageData.SlicePitch = creationInfo.m_stride * creationInfo.m_dimensions.y * creationInfo.m_dimensions.x;
 			UpdateSubresources(m_commandList.Get(), handle->m_resource, textureUploadHeap, 0, 0, 1, &imageData);
 			handle->TransitionTo(D3D12_RESOURCE_STATE_COMMON, m_commandList.Get());
 
@@ -1002,7 +1013,6 @@ Texture* Renderer::CreateTextureFromImage(Image const& image)
 
 ResourceView* Renderer::CreateShaderResourceView(ResourceViewInfo const& viewInfo) const
 {
-
 	DescriptorHeap* srvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = srvDescriptorHeap->GetNextCPUHandle();
@@ -1100,6 +1110,8 @@ void Renderer::SetSamplerMode(SamplerMode samplerMode)
 	DescriptorHeap* samplerHeap = GetDescriptorHeap(DescriptorHeapType::SAMPLER);
 
 	m_device->CreateSampler(&samplerDesc, samplerHeap->GetHandleAtOffset(0));
+	DescriptorHeap* gpuSamplerHeap = GetGPUDescriptorHeap(DescriptorHeapType::SAMPLER);
+	m_device->CopyDescriptorsSimple(1, gpuSamplerHeap->GetCPUHandleForHeapStart(), samplerHeap->GetHandleAtOffset(0), D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 	//if (!SUCCEEDED(samplerStateCreationResult)) {
 	//	ERROR_AND_DIE("ERROR CREATING SAMPLER STATE");
 	//}
@@ -1133,8 +1145,15 @@ void Renderer::BindTexture(Texture* textureToBind, unsigned int slot)
 	}
 
 	ResourceView* rsv = usedTex->GetOrCreateView(RESOURCE_BIND_SHADER_RESOURCE_BIT);
-	DescriptorHeap* srvHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
-	//m_device->CopyDescriptorsSimple(1, srvHeap->GetCPUHandleForHeapStart(), rsv->GetHandle(), LocalToD3D12(DescriptorHeapType::SRV_UAV_CBV));
+	DescriptorHeap* srvHeap = GetGPUDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
+	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = srvHeap->GetHandleAtOffset(slot);
+	D3D12_CPU_DESCRIPTOR_HANDLE textureHandle = rsv->GetHandle();
+
+	usedTex->GetResource()->TransitionTo(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_commandList.Get());
+
+	if (srvHandle.ptr != textureHandle.ptr) {
+		m_device->CopyDescriptorsSimple(1, srvHeap->GetCPUHandleForHeapStart(), rsv->GetHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	}
 }
 
 void Renderer::BeginFrame()
@@ -1267,6 +1286,11 @@ void Renderer::Shutdown()
 		delete descriptorHeap;
 		descriptorHeap = nullptr;
 	}
+	for (DescriptorHeap*& descriptorHeap : m_defaultGPUDescriptorHeaps) {
+		delete descriptorHeap;
+		descriptorHeap = nullptr;
+	}
+
 	m_commandList.Reset();
 	m_rootSignature.Reset();
 

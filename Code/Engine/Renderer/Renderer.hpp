@@ -104,6 +104,7 @@ public:
 	void ExecuteCommandLists(ID3D12CommandList** commandLists, unsigned int count);
 	void WaitForGPU();
 	DescriptorHeap* GetDescriptorHeap(DescriptorHeapType descriptorHeapType) const;
+	DescriptorHeap* GetGPUDescriptorHeap(DescriptorHeapType descriptorHeapType) const;
 	ResourceView* CreateTextureView(ResourceViewInfo const& resourceViewInfo) const;
 
 	void BindTexture(Texture* textureToBind, unsigned int slot = 0);
@@ -184,6 +185,7 @@ private:
 	std::vector<ID3D12Resource*> m_frameUploadHeaps;
 	//ID3D12DescriptorHeap* m_RTVdescriptorHeap;
 	std::vector<DescriptorHeap*> m_defaultDescriptorHeaps;
+	std::vector<DescriptorHeap*> m_defaultGPUDescriptorHeaps;
 	ComPtr<ID3D12Fence1> m_fence;
 	ComPtr<IDXGIFactory4> m_dxgiFactory;
 	ComPtr<ID3D12PipelineState> m_pipelineState;

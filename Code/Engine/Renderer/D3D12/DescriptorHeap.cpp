@@ -6,7 +6,7 @@
 #include <d3d12.h>
 #include <d3dx12.h>
 
-DescriptorHeap::DescriptorHeap(Renderer* owner, DescriptorHeapType descType, size_t numDescriptors):
+DescriptorHeap::DescriptorHeap(Renderer* owner, DescriptorHeapType descType, size_t numDescriptors, bool visibleFromGPU):
 	m_owner(owner),
 	m_type(descType),
 	m_descriptorCount(numDescriptors)
@@ -14,7 +14,6 @@ DescriptorHeap::DescriptorHeap(Renderer* owner, DescriptorHeapType descType, siz
 	D3D12_DESCRIPTOR_HEAP_DESC desc = {};
 	desc.NumDescriptors = (UINT)numDescriptors;
 	desc.Type = LocalToD3D12(descType);
-	bool visibleFromGPU = (descType == DescriptorHeapType::SRV_UAV_CBV) || (descType == DescriptorHeapType::SAMPLER);
 	if (visibleFromGPU) {
 		desc.Flags |= D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	}
