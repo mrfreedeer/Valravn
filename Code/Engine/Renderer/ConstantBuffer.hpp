@@ -1,20 +1,19 @@
 #pragma once
+#include "Engine/Core/Buffer.hpp"
 
-struct ID3D11Buffer;
-struct ID3D11Device;
+class ResourceView;
 
-class ConstantBuffer
+class ConstantBuffer : Buffer
 {
 	friend class Renderer;
 
 public:
-	ConstantBuffer(ID3D11Device* device, size_t sizeBytes);
-	ConstantBuffer(const ConstantBuffer& copy) = delete;
-	virtual ~ConstantBuffer();
+	ConstantBuffer(Renderer* owner, size_t size, size_t strideSize = 0, MemoryUsage memoryUsage = MemoryUsage::Dynamic, void const* data = nullptr);
+	~ConstantBuffer();
+	ResourceView* GetOrCreateView();
 
-	virtual bool GuaranteeBufferSize(size_t newSizeBytes);
-
-	ID3D11Buffer* m_buffer = nullptr;
-	ID3D11Device* m_device = nullptr;
-	size_t m_size = 0;
+private:
+	void CreateDefaultBuffer(void const* data) override {UNUSED(data)};
+private:
+	ResourceView* m_bufferView = nullptr;
 };

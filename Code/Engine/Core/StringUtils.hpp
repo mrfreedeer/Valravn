@@ -18,3 +18,4 @@ bool IsStringAllWhitespace(std::string const& str);
 inline void TrimString(std::string& str);
 std::string TrimStringCopy(std::string const& str);
 bool ContainsString(std::string const& baseStr, std::string const& otherString);
+bool ContainsStringCaseInsensitive(std::string const& baseStr, std::string const& otherString);

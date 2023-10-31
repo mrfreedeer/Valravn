@@ -1,5 +1,7 @@
 #pragma  once
 #include "Engine/Core/ErrorWarningAssert.hpp"
+
+#undef OPAQUE
 #define DX_SAFE_RELEASE(dxObject)			\
 {											\
 	if (( dxObject) != nullptr)				\
@@ -16,7 +18,7 @@ inline void ThrowIfFailed(long hr, char const* errorMsg) {
 }
 
 
-#undef OPAQUE
+
 
 enum class BlendMode
 {
@@ -65,50 +67,30 @@ enum class SamplerMode
 	SHADOWMAPS,
 };
 
-enum class TopologyMode {// Transformed directly to DX12 (if standard changes, unexpected behavior might result) check when changing to > DX12
-	UNDEFINED,
-	POINTLIST,
-	LINELIST,
-	LINESTRIP,
-	TRIANGLELIST,
-	TRIANGLESTRIP,
-	LINELIST_ADJ = 10,
-	LINESTRIP_ADJ = 11,
-	TRIANGLELIST_ADJ = 12,
-	TRIANGLESTRIP_ADJ = 13,
-	CONTROL_POINT_PATCHLIST_1 = 33,
-	CONTROL_POINT_PATCHLIST_2 = 34,
-	CONTROL_POINT_PATCHLIST_3 = 35,
-	CONTROL_POINT_PATCHLIST_4 = 36,
-	CONTROL_POINT_PATCHLIST_5 = 37,
-	CONTROL_POINT_PATCHLIST_6 = 38,
-	CONTROL_POINT_PATCHLIST_7 = 39,
-	CONTROL_POINT_PATCHLIST_8 = 40,
-	CONTROL_POINT_PATCHLIST_9 = 41,
-	CONTROL_POINT_PATCHLIST_10 = 42,
-	CONTROL_POINT_PATCHLIST_11 = 43,
-	CONTROL_POINT_PATCHLIST_12 = 44,
-	CONTROL_POINT_PATCHLIST_13 = 45,
-	CONTROL_POINT_PATCHLIST_14 = 46,
-	CONTROL_POINT_PATCHLIST_15 = 47,
-	CONTROL_POINT_PATCHLIST_16 = 48,
-	CONTROL_POINT_PATCHLIST_17 = 49,
-	CONTROL_POINT_PATCHLIST_18 = 50,
-	CONTROL_POINT_PATCHLIST_19 = 51,
-	CONTROL_POINT_PATCHLIST_20 = 52,
-	CONTROL_POINT_PATCHLIST_21 = 53,
-	CONTROL_POINT_PATCHLIST_22 = 54,
-	CONTROL_POINT_PATCHLIST_23 = 55,
-	CONTROL_POINT_PATCHLIST_24 = 56,
-	CONTROL_POINT_PATCHLIST_25 = 57,
-	CONTROL_POINT_PATCHLIST_26 = 58,
-	CONTROL_POINT_PATCHLIST_27 = 59,
-	CONTROL_POINT_PATCHLIST_28 = 60,
-	CONTROL_POINT_PATCHLIST_29 = 61,
-	CONTROL_POINT_PATCHLIST_30 = 62,
-	CONTROL_POINT_PATCHLIST_31 = 63,
-	CONTROL_POINT_PATCHLIST_32 = 64,
+enum class TopologyType {// Transformed directly to DX12 (if standard changes, unexpected behavior might result) check when changing to > DX12
+	TOPOLOGY_TYPE_UNDEFINED = 0,
+	TOPOLOGY_TYPE_POINT = 1,
+	TOPOLOGY_TYPE_LINE = 2,
+	TOPOLOGY_TYPE_TRIANGLE = 3,
+	TOPOLOGY_TYPE_PATCH = 4
 };
+
+/*
+* Since SRV UAV AND CBV share heap, the start and end of each needs to be managed
+*/
+constexpr unsigned int SRV_UAV_CBV_DEFAULT_SIZE = 4096;
+constexpr unsigned int CBV_HANDLE_START = 0;
+constexpr unsigned int CBV_HANDLE_END = (SRV_UAV_CBV_DEFAULT_SIZE / 8) * 3 - 1;
+constexpr unsigned int CBV_DESCRIPTORS_AMOUNT = CBV_HANDLE_END - CBV_HANDLE_START + 1;
+
+constexpr unsigned int SRV_HANDLE_START = CBV_HANDLE_END + 1;
+constexpr unsigned int SRV_HANDLE_END = SRV_HANDLE_START + (SRV_UAV_CBV_DEFAULT_SIZE / 2) - 1;
+constexpr unsigned int SRV_DESCRIPTORS_AMOUNT = SRV_HANDLE_END - SRV_HANDLE_START + 1;
+
+constexpr unsigned int UAV_HANDLE_START = SRV_HANDLE_END + 1;
+constexpr unsigned int UAV_HANDLE_END = SRV_UAV_CBV_DEFAULT_SIZE - 1;
+constexpr unsigned int UAV_DESCRIPTORS_AMOUNT = UAV_HANDLE_END - UAV_HANDLE_START + 1;
+
 
 
 

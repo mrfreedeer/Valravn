@@ -1,47 +1,45 @@
-//#include "Engine/Renderer/ConstantBuffer.hpp"
-//#include "Engine/Core/ErrorWarningAssert.hpp"
-//#include "Engine/Renderer/Renderer.hpp"
-//
-//#include <d3d11.h> 
-//
-//ConstantBuffer::ConstantBuffer(ID3D11Device* device, size_t sizeBytes):
-//m_size(sizeBytes),
-//m_device(device)
-//{
-//	D3D11_BUFFER_DESC bufferDesc = {};
-//	bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-//	bufferDesc.ByteWidth = static_cast<UINT>(sizeBytes);
-//	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-//	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-//
-//	HRESULT bufferCreationResult = m_device->CreateBuffer(&bufferDesc, NULL, &m_buffer);
-//	if (!SUCCEEDED(bufferCreationResult)) {
-//		ERROR_AND_DIE("BUFFER CREATION RESULT ERROR");
-//	}
-//}
-//
-//ConstantBuffer::~ConstantBuffer()
-//{
-//	DX_SAFE_RELEASE(m_buffer);
-//}
-//
-//bool ConstantBuffer::GuaranteeBufferSize(size_t newSizeBytes)
-//{
-//	if (m_size >= newSizeBytes) return false;
-//
-//	DX_SAFE_RELEASE(m_buffer);
-//
-//	D3D11_BUFFER_DESC bufferDesc = {};
-//	bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-//	bufferDesc.ByteWidth = static_cast<UINT>(newSizeBytes);
-//	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-//	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-//
-//	HRESULT bufferCreationResult = m_device->CreateBuffer(&bufferDesc, NULL, &m_buffer);
-//	if (!SUCCEEDED(bufferCreationResult)) {
-//		ERROR_AND_DIE("CONSTANT BUFFER RESIZE RESULT ERROR");
-//	}
-//
-//	m_size = newSizeBytes;
-//	return true;
-//}
+#include "Engine/Renderer/ConstantBuffer.hpp"
+#include "Engine/Renderer/D3D12/Resource.hpp"
+#include "Engine/Renderer/Renderer.hpp"
+#include <d3d12.h>
+
+ConstantBuffer::ConstantBuffer(Renderer* owner, size_t size, size_t strideSize /*= 0*/, MemoryUsage memoryUsage /*= MemoryUsage::Dynamic*/, void const* data /*= nullptr*/):
+	Buffer(owner, size, strideSize, memoryUsage, data)
+{
+
+	bool adjustSize = (size & 0xFF);
+	if (adjustSize) {
+		m_size &= ~0xFF;
+		m_size += 256;
+
+		m_stride = m_size;
+	}
+	CreateDynamicBuffer(data);
+
+}
+
+ConstantBuffer::~ConstantBuffer()
+{
+	if (m_bufferView) {
+		delete m_bufferView;
+	}
+}
+
+ResourceView* ConstantBuffer::GetOrCreateView() 
+{
+	if(m_bufferView) return m_bufferView;
+
+	BufferView bufferV = GetBufferView();
+
+	D3D12_CONSTANT_BUFFER_VIEW_DESC* cBufferView = new D3D12_CONSTANT_BUFFER_VIEW_DESC();
+	cBufferView->BufferLocation = bufferV.m_bufferLocation;
+	cBufferView->SizeInBytes = (UINT)bufferV.m_sizeInBytes;
+
+	ResourceViewInfo bufferViewInfo = {};
+	bufferViewInfo.m_cbvDesc = cBufferView;
+	bufferViewInfo.m_viewType = RESOURCE_BIND_CONSTANT_BUFFER_VIEW_BIT;
+
+	m_bufferView = m_owner->CreateResourceView(bufferViewInfo);
+
+	return m_bufferView;
+}

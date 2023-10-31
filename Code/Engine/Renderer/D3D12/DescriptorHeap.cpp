@@ -51,6 +51,13 @@ D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeap::GetHandleAtOffset(size_t offset)
 	return handleToReturn;
 }
 
+D3D12_GPU_DESCRIPTOR_HANDLE DescriptorHeap::GetGPUHandleAtOffset(size_t offset)
+{
+	CD3DX12_GPU_DESCRIPTOR_HANDLE handleToReturn(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), (UINT)offset, (UINT)m_descriptorHandleSize);
+
+	return handleToReturn;
+}
+
 D3D12_GPU_DESCRIPTOR_HANDLE DescriptorHeap::GetGPUHandleForHeapStart()
 {
 	return m_descriptorHeap->GetGPUDescriptorHandleForHeapStart();
@@ -60,6 +67,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeap::GetCPUHandleForHeapStart()
 {
 	return m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
 }
+
 
 DescriptorHeap::~DescriptorHeap()
 {

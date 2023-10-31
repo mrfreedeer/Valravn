@@ -14,6 +14,46 @@ DXGI_FORMAT LocalToD3D12(TextureFormat textureFormat)
 	}
 }
 
+D3D12_FILL_MODE LocalToD3D12(FillMode fillMode)
+{
+	switch (fillMode)
+	{
+	case FillMode::SOLID: return D3D12_FILL_MODE_SOLID;
+	case FillMode::WIREFRAME: return D3D12_FILL_MODE_WIREFRAME;
+	default: ERROR_AND_DIE("Unsupported format");
+	}
+}
+
+D3D12_CULL_MODE LocalToD3D12(CullMode cullMode)
+{
+	switch (cullMode)
+	{
+	case CullMode::NONE: return D3D12_CULL_MODE_NONE;
+	case CullMode::FRONT: return D3D12_CULL_MODE_FRONT;
+	case CullMode::BACK: return D3D12_CULL_MODE_BACK;
+	default: ERROR_AND_DIE("Unsupported cull mode");
+	}
+}
+
+BOOL LocalToD3D12(WindingOrder windingOrder)
+{
+	switch (windingOrder)
+	{
+	case WindingOrder::CLOCKWISE: return FALSE;
+	case WindingOrder::COUNTERCLOCKWISE: return TRUE;
+	default: ERROR_AND_DIE("Unsupported winding order");
+	}
+}
+
+DXGI_FORMAT LocalToColourD3D12(TextureFormat textureFormat)
+{
+	switch (textureFormat) {
+	case TextureFormat::R24G8_TYPELESS: return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	default: return LocalToD3D12(textureFormat);
+	}
+}
+
+
 D3D12_RESOURCE_FLAGS LocalToD3D12(ResourceBindFlag flags)
 {
 	D3D12_RESOURCE_FLAGS result = D3D12_RESOURCE_FLAG_NONE;
@@ -55,3 +95,4 @@ D3D12_DESCRIPTOR_HEAP_TYPE LocalToD3D12(DescriptorHeapType dHeapType)
 	}
 	ERROR_AND_DIE("UNKNOWN DESCRIPTOR HEAP TYPE");
 }
+

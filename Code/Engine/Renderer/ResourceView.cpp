@@ -7,7 +7,7 @@ bool ResourceViewInfo::operator==(ResourceViewInfo const& otherView) const
 
 ResourceViewInfo::~ResourceViewInfo()
 {
-	if (m_srvDesc) {
+	/*if (m_srvDesc) {
 		delete m_srvDesc;
 		m_srvDesc = nullptr;
 	}
@@ -30,7 +30,7 @@ ResourceViewInfo::~ResourceViewInfo()
 	if (m_dsvDesc) {
 		delete m_dsvDesc;
 		m_dsvDesc = nullptr;
-	}
+	}*/
 }
 
 ResourceView::ResourceView(ResourceViewInfo const& viewInfo):

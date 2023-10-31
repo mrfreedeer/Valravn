@@ -2,7 +2,7 @@
 #include "Engine/Renderer/DebugRendererSystem.hpp"
 #include "Engine/Core/EngineCommon.hpp"
 
-SpriteAnimDefinition::SpriteAnimDefinition(const SpriteSheet& sheet, int startSpriteIndex, int endSpriteIndex, float durationSeconds, SpriteAnimPlaybackType playbackType, Vec3 const& direction, Shader* shader) :
+SpriteAnimDefinition::SpriteAnimDefinition(const SpriteSheet& sheet, int startSpriteIndex, int endSpriteIndex, float durationSeconds, SpriteAnimPlaybackType playbackType, Vec3 const& direction, Material* shader) :
 	m_spriteSheet(sheet),
 	m_startSpriteIndex(startSpriteIndex),
 	m_endSpriteIndex(endSpriteIndex),

@@ -2,8 +2,9 @@
 #include "Engine/Core/EngineCommon.hpp"
 #include <stdint.h>
 
-struct ID3D12Resource1;
+class Resource;
 class Renderer;
+struct ID3D12Resource2;
 
 struct BufferView {
 	size_t m_bufferLocation;
@@ -29,13 +30,13 @@ public:
 
 	void CopyCPUToGPU(void const* data, size_t sizeInBytes);
 protected:
-	void CreateDynamicBuffer(void const* data);
-	void CreateDefaultBuffer(void const* data);
-	void CreateAndCopyToUploadBuffer(ID3D12Resource1*& uploadBuffer, void const* data);
+	virtual void CreateDynamicBuffer(void const* data);
+	virtual void CreateDefaultBuffer(void const* data);
+	void CreateAndCopyToUploadBuffer(ID3D12Resource2*& uploadBuffer, void const* data);
 
 protected:
 	Renderer* m_owner = nullptr;
-	ID3D12Resource1* m_buffer = nullptr;
+	Resource* m_buffer = nullptr;
 	size_t m_size = 0;
 	size_t m_stride = 0;
 };

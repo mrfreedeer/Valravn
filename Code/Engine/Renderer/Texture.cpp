@@ -21,8 +21,11 @@ Texture::Texture()
 
 Texture::~Texture()
 {
-	if (m_handle) {
-		delete m_handle;
+	for (ResourceView*& rView : m_views) {
+		if (rView) {
+			delete rView;
+			rView = nullptr;
+		}
 	}
 }
 
@@ -44,7 +47,7 @@ ResourceView* Texture::CreateShaderResourceView()
 	viewInfo.m_viewType = RESOURCE_BIND_SHADER_RESOURCE_BIT;
 	viewInfo.m_source = m_handle;
 
-	ResourceView* newView = m_owner->CreateTextureView(viewInfo);
+	ResourceView* newView = m_owner->CreateResourceView(viewInfo);
 	m_views.push_back(newView);
 
 	return newView;
@@ -63,7 +66,7 @@ ResourceView* Texture::CreateRenderTargetView()
 	viewInfo.m_viewType = RESOURCE_BIND_RENDER_TARGET_BIT;
 	viewInfo.m_source = m_handle;
 
-	ResourceView* newView = m_owner->CreateTextureView(viewInfo);
+	ResourceView* newView = m_owner->CreateResourceView(viewInfo);
 	m_views.push_back(newView);
 
 	return newView;
@@ -82,7 +85,7 @@ ResourceView* Texture::CreateDepthStencilView()
 	viewInfo.m_viewType = RESOURCE_BIND_DEPTH_STENCIL_BIT;
 	viewInfo.m_source = m_handle;
 
-	ResourceView* newView = m_owner->CreateTextureView(viewInfo);
+	ResourceView* newView = m_owner->CreateResourceView(viewInfo);
 	m_views.push_back(newView);
 
 	return newView;

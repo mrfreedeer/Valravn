@@ -6,6 +6,7 @@ struct D3D12_GPU_DESCRIPTOR_HANDLE;
 struct ID3D12DescriptorHeap;
 class Renderer;
 
+
 enum class DescriptorHeapType {
 	UNDEFINED = -1,
 	SRV_UAV_CBV,
@@ -21,10 +22,12 @@ public:
 	~DescriptorHeap();
 	D3D12_CPU_DESCRIPTOR_HANDLE GetNextCPUHandle();
 	D3D12_CPU_DESCRIPTOR_HANDLE GetHandleAtOffset(size_t offset);
+	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUHandleAtOffset(size_t offset);
 	ID3D12DescriptorHeap* GetHeap() { return m_descriptorHeap; }
 	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUHandleForHeapStart();
 	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUHandleForHeapStart();
 	DescriptorHeapType GetHeapType() const { return m_type; }
+
 private:
 	Renderer* m_owner = nullptr;
 	ID3D12DescriptorHeap* m_descriptorHeap = nullptr;

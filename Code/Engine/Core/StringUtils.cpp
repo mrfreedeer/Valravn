@@ -1,6 +1,7 @@
 #include "Engine/Core/StringUtils.hpp"
 #include <stdarg.h>
 #include <locale>
+#include <algorithm>
 
 
 //-----------------------------------------------------------------------------------------------
@@ -142,4 +143,18 @@ bool ContainsString(std::string const& baseStr, std::string const& otherString)
 	return containsString;
 }
 
+bool ContainsStringCaseInsensitive(std::string const& baseStr, std::string const& otherString)
+{
+	std::string lowerCaseStr = otherString;
+	std::string lowerCaseBase = baseStr;
+	
+	auto lowerLambda = [](unsigned char c) { return static_cast<char>(std::tolower(c)); };
+
+
+	std::transform(lowerCaseStr.begin(), lowerCaseStr.end(), lowerCaseStr.begin(),lowerLambda);
+	std::transform(lowerCaseBase.begin(), lowerCaseBase.end(), lowerCaseBase.begin(),lowerLambda);
+
+	bool containsString = (lowerCaseBase.find(lowerCaseStr) != std::string::npos);
+	return containsString;
+}
 

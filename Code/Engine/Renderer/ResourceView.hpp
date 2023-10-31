@@ -6,7 +6,8 @@ enum ResourceBindFlagBit : unsigned int {
 	RESOURCE_BIND_SHADER_RESOURCE_BIT = (1 << 0),
 	RESOURCE_BIND_RENDER_TARGET_BIT = (1 << 1),
 	RESOURCE_BIND_DEPTH_STENCIL_BIT = (1 << 2),
-	RESOURCE_BIND_UNORDERED_ACCESS_VIEW_BIT = (1 << 3)
+	RESOURCE_BIND_UNORDERED_ACCESS_VIEW_BIT = (1 << 3),
+	RESOURCE_BIND_CONSTANT_BUFFER_VIEW_BIT = (1 << 4)
 };
 
 typedef unsigned int ResourceBindFlag;
@@ -32,9 +33,9 @@ class ResourceView {
 
 public:
 	D3D12_CPU_DESCRIPTOR_HANDLE GetHandle() { return m_descriptorHandle; }
+	~ResourceView();
 private:
 	ResourceView(ResourceViewInfo const& viewInfo);
-	~ResourceView();
 
 
 private:

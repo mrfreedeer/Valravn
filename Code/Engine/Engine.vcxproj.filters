@@ -47,6 +47,15 @@
     <Filter Include="Renderer\D3D12">
       <UniqueIdentifier>{4fa813ba-13b9-41a6-b9ff-25dac1f745a4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Renderer\Materials">
+      <UniqueIdentifier>{8157c02b-3462-41a7-878c-f7d9ab51e905}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Renderer\Materials\Shaders">
+      <UniqueIdentifier>{10bec793-ac90-4da9-b44c-ed40f783f438}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Renderer\Materials\Shaders\Stages">
+      <UniqueIdentifier>{143a3874-4d69-45fc-acdf-8f1aa0209619}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Math\Vec2.cpp">
@@ -220,7 +229,7 @@
     <ClCompile Include="..\ThirdParty\TinyXML2\tinyxml2.cpp">
       <Filter>ThirdParty\TinyXML2</Filter>
     </ClCompile>
-    <ClCompile Include="Renderer\Shader.cpp">
+    <ClCompile Include="Renderer\Material.cpp">
       <Filter>Renderer</Filter>
     </ClCompile>
     <ClCompile Include="Math\RaycastUtils.cpp">
@@ -504,7 +513,7 @@
     <ClInclude Include="Renderer\SpriteSheet.hpp">
       <Filter>Renderer</Filter>
     </ClInclude>
-    <ClInclude Include="Renderer\Shader.hpp">
+    <ClInclude Include="Renderer\Material.hpp">
       <Filter>Renderer</Filter>
     </ClInclude>
     <ClInclude Include="Core\EventSystem.hpp">
@@ -672,5 +681,52 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="Renderer\Materials\Shaders\ColorBandEffect.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\Default.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\DefaultDiffuse.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\DistanceFogEffect.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\DownsampleDepthBuffer.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\effect.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\GrayScaleEffect.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\InvertedColorEffect.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\PixelizedEffect.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\Skybox.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\SSAO.hlsli">
+      <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Xml Include="Renderer\DefaultMaterial.xml" />
+    <Xml Include="Renderer\Materials\DefaultMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\Default_p.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\Default_v.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

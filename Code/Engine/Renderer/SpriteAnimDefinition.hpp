@@ -5,7 +5,7 @@
 #include "ThirdParty/TinyXML2/tinyxml2.h"
 
 
-class Shader;
+class Material;
 typedef tinyxml2::XMLElement XMLElement;
 enum class SpriteAnimPlaybackType
 {
@@ -17,13 +17,13 @@ enum class SpriteAnimPlaybackType
 class SpriteAnimDefinition {
 public:
 	SpriteAnimDefinition(const SpriteSheet& sheet, int startSpriteIndex, int endSpriteIndex,
-		float durationSeconds, SpriteAnimPlaybackType playbackType = SpriteAnimPlaybackType::LOOP, Vec3 const& direction = Vec3::ZERO, Shader* shader = nullptr);
+		float durationSeconds, SpriteAnimPlaybackType playbackType = SpriteAnimPlaybackType::LOOP, Vec3 const& direction = Vec3::ZERO, Material* shader = nullptr);
 
 	SpriteDefinition const& GetSpriteDefAtTime(float seconds) const;
 	float GetDuration() const;
 	float GetDotProduct(Vec3 const& direction) const { return DotProduct3D(m_direction, direction); }
 	Vec3 GetDirection() const { return m_direction; }
-	Shader* GetShader() const { return m_shader; }
+	Material* GetShader() const { return m_shader; }
 
 private:
 	SpriteDefinition const& GetSpritDefAtTimePlayOnce(float seconds) const;
@@ -38,7 +38,7 @@ private:
 	float m_durationSeconds = 1.f;
 	SpriteAnimPlaybackType	m_playbackType = SpriteAnimPlaybackType::LOOP;
 	Vec3 m_direction = Vec3::ZERO;
-	Shader* m_shader = nullptr;
+	Material* m_shader = nullptr;
 };
 
 class SpriteAnimGroupDefinition {

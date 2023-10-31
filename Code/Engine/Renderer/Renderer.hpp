@@ -4,10 +4,12 @@
 #include "Engine/Math/Mat44.hpp"
 #include "Engine/Renderer/D3D12/DescriptorHeap.hpp"
 #include "Engine/Renderer/ResourceView.hpp"
+#include "Engine/Renderer/GraphicsCommon.hpp"
 #include "Game/EngineBuildPreferences.hpp"
 #include <filesystem>
 #include <cstdint>
 #include <vector>
+#include <map>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <d3dcompiler.h>
@@ -22,24 +24,53 @@
 template <typename T>
 using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-enum class SamplerMode;
+
+
+struct ShaderByteCode;
+struct ShaderLoadInfo;
 
 class Window;
-class Shader;
+class Material;
 class VertexBuffer;
 struct Rgba8;
 struct Vertex_PCU;
 class Texture;
 struct TextureCreateInfo;
 class Image;
+class Camera;
+class ConstantBuffer;
 
 struct RendererConfig {
 	Window* m_window = nullptr;
 	unsigned int m_backBuffersCount = 2;
 };
 
+struct ModelConstants {
+	Mat44 ModelMatrix = Mat44();
+	float ModelColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+	float ModelPadding[4];
+};
+
+struct CameraConstants {
+	Mat44 ProjectionMatrix;
+	Mat44 ViewMatrix;
+	Mat44 InvertedMatrix;
+};
 
 
+
+struct ImmediateContext {
+	CameraConstants m_cameraConstants = {};
+	ModelConstants m_modelConstants = {};
+	std::map<unsigned int, Texture*> m_boundTextures;
+	std::map<unsigned int, ConstantBuffer*> m_boundCBuffers;
+	VertexBuffer* m_immediateBuffer = nullptr;
+	Material* m_material = nullptr;
+	Texture* m_renderTargets[8] = {};
+	Texture* m_depthTarget = nullptr;
+	unsigned int m_srvHandleStart = 0;
+	unsigned int m_cbvHandleStart = 0;
+};
 
 struct Light
 {
@@ -94,8 +125,11 @@ public:
 	void EndFrame();
 	void Shutdown();
 
+	void BeginCamera(Camera const& camera);
+	void EndCamera(Camera const& camera);
+
 	void ClearScreen(Rgba8 const& color);
-	Shader* CreateOrGetShader(std::filesystem::path shaderName);
+	Material* CreateOrGetMaterial(std::filesystem::path materialPathNoExt);
 	Texture* CreateOrGetTextureFromFile(char const* imageFilePath);
 	void DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes);
 	void DrawVertexArray(std::vector<Vertex_PCU> const& vertexes);
@@ -105,9 +139,19 @@ public:
 	void WaitForGPU();
 	DescriptorHeap* GetDescriptorHeap(DescriptorHeapType descriptorHeapType) const;
 	DescriptorHeap* GetGPUDescriptorHeap(DescriptorHeapType descriptorHeapType) const;
-	ResourceView* CreateTextureView(ResourceViewInfo const& resourceViewInfo) const;
+	ResourceView* CreateResourceView(ResourceViewInfo const& resourceViewInfo) const;
 
-	void BindTexture(Texture* textureToBind, unsigned int slot = 0);
+	// Binds
+	void BindConstantBuffer(ConstantBuffer* cBuffer, unsigned int slot = 0);
+	void BindTexture(Texture* texture, unsigned int slot = 0);
+
+	void BindMaterial(Material* mat);
+	void SetMaterialPSO(Material* mat);
+
+	// General
+	void SetDebugName(ID3D12Object* object, char const* name);
+	template<typename T_Object>
+	void SetDebugName(ComPtr<T_Object> object, char const* name);
 
 private:
 
@@ -139,31 +183,35 @@ private:
 
 	// Shaders & Resources
 	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std::vector<D3D12_SIGNATURE_PARAMETER_DESC>& elementsDescs);
-	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* name, char const* source, char const* entryPoint, char const* target, bool isAntialiasingOn);
-	Shader* CreateShader(std::filesystem::path shaderName);
-	Shader* CreateShader(char const* shaderName, char const* shaderSource);
-	Shader* GetShaderForName(char const* shaderName);
-	void CreateViewport();
+	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* source, ShaderLoadInfo const& loadInfo);
+
+	Material* CreateMaterial(std::string const& materialXMLFile);
+	void CreatePSOForMaterial(Material* material);
+	ShaderByteCode* CompileOrGetShaderBytes(ShaderLoadInfo const& shaderLoadInfo);
+	ShaderByteCode* GetByteCodeForShaderSrc(ShaderLoadInfo const& shaderLoadInfo);
+	Material* GetMaterialForName(char const* materialName);
+	void CreateViewport();	
 	Texture* CreateTexture(TextureCreateInfo& creationInfo);
+	void DestroyTexture(Texture* textureToDestroy);
 	Texture* GetTextureForFileName(char const* imageFilePath);
 	Texture* CreateTextureFromFile(char const* imageFilePath);
 	Texture* CreateTextureFromImage(Image const& image);
 	ResourceView* CreateShaderResourceView(ResourceViewInfo const& viewInfo) const;
 	ResourceView* CreateRenderTargetView(ResourceViewInfo const& viewInfo) const;
 	ResourceView* CreateDepthStencilView(ResourceViewInfo const& viewInfo) const;
+	ResourceView* CreateConstantBufferView(ResourceViewInfo const& viewInfo) const;
 	void SetSamplerMode(SamplerMode samplerMode);
+	void SetBlendMode(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc);
 
-	// General
-	void SetDebugName(ID3D12Object* object, char const* name);
-	template<typename T_Object>
-	void SetDebugName(ComPtr<T_Object> object, char const* name);
+	void ResetGPUDescriptorHeaps();
+	void CopyTextureToHeap(Texture* textureToBind, unsigned int handleStart, unsigned int slot = 0);
+	void CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int handleStart, unsigned int slot = 0);
 
-
-	void DrawImmediateBuffers();
+	void DrawAllImmediateContexts();
+	void ClearAllImmediateContexts();
+	void DrawImmediateCtx(ImmediateContext& ctx);
 	ComPtr<ID3D12GraphicsCommandList2> GetBufferCommandList();
 private:
-
-
 	RendererConfig m_config = {};
 	// This object must be first ALWAYS!!!!!
 	LiveObjectReporter m_liveObjectReporter;
@@ -190,20 +238,29 @@ private:
 	ComPtr<IDXGIFactory4> m_dxgiFactory;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 
-	std::vector<Shader*> m_loadedShaders;
-	std::vector<VertexBuffer*> m_immediateBuffers;
+	std::vector<ShaderByteCode*> m_shaderByteCodes;
+	std::vector<Material*> m_loadedMaterials;
+	std::vector<ImmediateContext> m_immediateCtxs;
 	std::vector<Texture*> m_loadedTextures;
-	Shader* m_defaultShader = nullptr;
+	Material* m_defaultMaterial = nullptr;
 	D3D12_VIEWPORT m_viewport;
 	D3D12_RECT m_scissorRect;
-	unsigned int m_currentBackBuffer = 0;
 	std::vector<unsigned int> m_fenceValues;
-	unsigned int m_RTVdescriptorSize = 0;
 	HANDLE m_fenceEvent;
 	bool m_useWARP = false;
+	bool m_uploadRequested = false;
+	unsigned int m_currentBackBuffer = 0;
 	unsigned int m_antiAliasingLevel = 0;
 	unsigned int m_currentFrame = 0;
-	bool m_uploadRequested = false;
+	unsigned int m_RTVdescriptorSize = 0;
+
+	ConstantBuffer* m_cameraCBO = nullptr;
+	ConstantBuffer* m_modelCBO = nullptr;
+	Camera const* m_currentCamera = nullptr;
+
+	ImmediateContext m_currentDrawCtx = {};
+	unsigned int m_srvHandleStart = 0;
+	unsigned int m_cbvHandleStart = 0;
 };
 
 template<typename T_Object>
@@ -211,13 +268,7 @@ void Renderer::SetDebugName(ComPtr<T_Object> object, char const* name)
 {
 	if(!object) return;
 #if defined(ENGINE_DEBUG_RENDER)
-	size_t strLength = strlen(name) + 1;
-	wchar_t* debugName = new wchar_t[strLength];
-	size_t numChars = 0;
-
-
-	mbstowcs_s(&numChars, debugName, strLength, name, _TRUNCATE);
-	object->SetPrivateData(WKPDID_D3DDebugObjectNameW, sizeof(debugName), debugName);
+	object->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)strlen(name), name);
 	//object->SetName(name);
 #else
 	UNUSED(object);
