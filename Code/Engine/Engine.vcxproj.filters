@@ -717,7 +717,10 @@
   </ItemGroup>
   <ItemGroup>
     <Xml Include="Renderer\DefaultMaterial.xml" />
-    <Xml Include="Renderer\Materials\DefaultMaterial.xml">
+    <Xml Include="Renderer\Materials\Default2DMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
+    <Xml Include="Renderer\Materials\Default3DMaterial.xml">
       <Filter>Renderer\Materials</Filter>
     </Xml>
   </ItemGroup>

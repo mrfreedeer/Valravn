@@ -1,7 +1,7 @@
-<Material name="DefaultMaterial">
+<Material name="Default2DMaterial">
     <VertexShader  EngineShader="true" headerSrc="Shaders/" src="Shaders/Stages/Default_v.hlsl" entryPoint="VertexMain"/>
     <PixelShader   EngineShader="true" headerSrc="Shaders/" src="Shaders/Stages/Default_p.hlsl" entryPoint="PixelMain"/>
-    <BlendMode value="Opaque"/>
+    <BlendMode value="Alpha"/>
     <!-- CCW - CounterClockwise
     CW - ClockWise -->
     <WindingOrder value="CCW"/> 

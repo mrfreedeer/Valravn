@@ -1,5 +1,6 @@
 #include "Engine/Renderer/D3D12/D3D12TypeConversions.hpp"
 #include "Engine/Core/ErrorWarningAssert.hpp"
+#include "Engine/Core/StringUtils.hpp"
 
 DXGI_FORMAT LocalToD3D12(TextureFormat textureFormat)
 {
@@ -43,6 +44,23 @@ BOOL LocalToD3D12(WindingOrder windingOrder)
 	case WindingOrder::COUNTERCLOCKWISE: return TRUE;
 	default: ERROR_AND_DIE("Unsupported winding order");
 	}
+}
+
+D3D12_COMPARISON_FUNC LocalToD3D12(DepthTest depthTest)
+{
+	switch (depthTest) {
+	case DepthTest::NEVER: return D3D12_COMPARISON_FUNC_NEVER;
+	case DepthTest::LESS: return D3D12_COMPARISON_FUNC_LESS;
+	case DepthTest::EQUAL: return D3D12_COMPARISON_FUNC_EQUAL;
+	case DepthTest::LESSEQUAL: return D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	case DepthTest::GREATER: return D3D12_COMPARISON_FUNC_GREATER;
+	case DepthTest::NOTEQUAL: return D3D12_COMPARISON_FUNC_NOT_EQUAL;
+	case DepthTest::GREATEREQUAL: return D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+	case DepthTest::ALWAYS: return D3D12_COMPARISON_FUNC_ALWAYS;
+	default:
+		ERROR_AND_DIE(Stringf("UNSUPPORTED DEPTH TEST %d", (int)depthTest).c_str());
+	}
+
 }
 
 DXGI_FORMAT LocalToColourD3D12(TextureFormat textureFormat)

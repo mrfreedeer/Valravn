@@ -3,18 +3,18 @@
 #include "Engine/Renderer/Renderer.hpp"
 #include <d3d12.h>
 
-ConstantBuffer::ConstantBuffer(Renderer* owner, size_t size, size_t strideSize /*= 0*/, MemoryUsage memoryUsage /*= MemoryUsage::Dynamic*/, void const* data /*= nullptr*/):
-	Buffer(owner, size, strideSize, memoryUsage, data)
+ConstantBuffer::ConstantBuffer(BufferDesc const& bufferDesc) :
+	Buffer(bufferDesc)
 {
 
-	bool adjustSize = (size & 0xFF);
+	bool adjustSize = (m_size & 0xFF);
 	if (adjustSize) {
 		m_size &= ~0xFF;
 		m_size += 256;
 
-		m_stride = m_size;
 	}
-	CreateDynamicBuffer(data);
+	m_stride = m_size;
+	CreateDynamicBuffer(m_data);
 
 }
 
@@ -25,9 +25,9 @@ ConstantBuffer::~ConstantBuffer()
 	}
 }
 
-ResourceView* ConstantBuffer::GetOrCreateView() 
+ResourceView* ConstantBuffer::GetOrCreateView()
 {
-	if(m_bufferView) return m_bufferView;
+	if (m_bufferView) return m_bufferView;
 
 	BufferView bufferV = GetBufferView();
 
@@ -39,7 +39,7 @@ ResourceView* ConstantBuffer::GetOrCreateView()
 	bufferViewInfo.m_cbvDesc = cBufferView;
 	bufferViewInfo.m_viewType = RESOURCE_BIND_CONSTANT_BUFFER_VIEW_BIT;
 
-	m_bufferView = m_owner->CreateResourceView(bufferViewInfo);
+	m_bufferView = m_owner->CreateResourceView(bufferViewInfo, m_descriptorHeap);
 
 	return m_bufferView;
 }

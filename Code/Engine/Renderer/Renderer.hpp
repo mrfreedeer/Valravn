@@ -39,6 +39,7 @@ struct TextureCreateInfo;
 class Image;
 class Camera;
 class ConstantBuffer;
+class BitmapFont;
 
 struct RendererConfig {
 	Window* m_window = nullptr;
@@ -62,7 +63,9 @@ struct CameraConstants {
 struct ImmediateContext {
 	CameraConstants m_cameraConstants = {};
 	ModelConstants m_modelConstants = {};
-	std::map<unsigned int, Texture*> m_boundTextures;
+	ConstantBuffer* m_cameraCBO = nullptr;
+	ConstantBuffer* m_modelCBO = nullptr;
+	std::map<unsigned int, Texture const*> m_boundTextures;
 	std::map<unsigned int, ConstantBuffer*> m_boundCBuffers;
 	VertexBuffer* m_immediateBuffer = nullptr;
 	Material* m_material = nullptr;
@@ -129,6 +132,7 @@ public:
 	void EndCamera(Camera const& camera);
 
 	void ClearScreen(Rgba8 const& color);
+	void ClearDepth(float clearDepth = 1.0f);
 	Material* CreateOrGetMaterial(std::filesystem::path materialPathNoExt);
 	Texture* CreateOrGetTextureFromFile(char const* imageFilePath);
 	void DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes);
@@ -139,11 +143,13 @@ public:
 	void WaitForGPU();
 	DescriptorHeap* GetDescriptorHeap(DescriptorHeapType descriptorHeapType) const;
 	DescriptorHeap* GetGPUDescriptorHeap(DescriptorHeapType descriptorHeapType) const;
-	ResourceView* CreateResourceView(ResourceViewInfo const& resourceViewInfo) const;
+	ResourceView* CreateResourceView(ResourceViewInfo const& resourceViewInfo, DescriptorHeap* descriptorHeap = nullptr) const;
+	BitmapFont* CreateOrGetBitmapFont(std::filesystem::path bitmapPath);
+
 
 	// Binds
 	void BindConstantBuffer(ConstantBuffer* cBuffer, unsigned int slot = 0);
-	void BindTexture(Texture* texture, unsigned int slot = 0);
+	void BindTexture(Texture const* texture, unsigned int slot = 0);
 
 	void BindMaterial(Material* mat);
 	void SetMaterialPSO(Material* mat);
@@ -152,6 +158,7 @@ public:
 	void SetDebugName(ID3D12Object* object, char const* name);
 	template<typename T_Object>
 	void SetDebugName(ComPtr<T_Object> object, char const* name);
+	void SetSamplerMode(SamplerMode samplerMode);
 
 private:
 
@@ -199,17 +206,18 @@ private:
 	ResourceView* CreateShaderResourceView(ResourceViewInfo const& viewInfo) const;
 	ResourceView* CreateRenderTargetView(ResourceViewInfo const& viewInfo) const;
 	ResourceView* CreateDepthStencilView(ResourceViewInfo const& viewInfo) const;
-	ResourceView* CreateConstantBufferView(ResourceViewInfo const& viewInfo) const;
-	void SetSamplerMode(SamplerMode samplerMode);
+	ResourceView* CreateConstantBufferView(ResourceViewInfo const& viewInfo, DescriptorHeap* descriptorHeap) const;
 	void SetBlendMode(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc);
+	BitmapFont* CreateBitmapFont(std::filesystem::path bitmapPath);
+	
 
 	void ResetGPUDescriptorHeaps();
-	void CopyTextureToHeap(Texture* textureToBind, unsigned int handleStart, unsigned int slot = 0);
+	void CopyTextureToHeap(Texture const* textureToBind, unsigned int handleStart, unsigned int slot = 0);
 	void CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int handleStart, unsigned int slot = 0);
 
-	void DrawAllImmediateContexts();
+	void DrawAllImmediateContexts(DescriptorHeap* descriptorHeap);
 	void ClearAllImmediateContexts();
-	void DrawImmediateCtx(ImmediateContext& ctx);
+	void DrawImmediateCtx(ImmediateContext& ctx, DescriptorHeap* descriptorHeap);
 	ComPtr<ID3D12GraphicsCommandList2> GetBufferCommandList();
 private:
 	RendererConfig m_config = {};
@@ -242,7 +250,9 @@ private:
 	std::vector<Material*> m_loadedMaterials;
 	std::vector<ImmediateContext> m_immediateCtxs;
 	std::vector<Texture*> m_loadedTextures;
-	Material* m_defaultMaterial = nullptr;
+	std::vector<BitmapFont*> m_loadedFonts;
+	Material* m_default2DMaterial = nullptr;
+	Material* m_default3DMaterial = nullptr;
 	D3D12_VIEWPORT m_viewport;
 	D3D12_RECT m_scissorRect;
 	std::vector<unsigned int> m_fenceValues;

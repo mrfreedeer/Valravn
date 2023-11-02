@@ -8,15 +8,16 @@
 
 
 class Texture;
+enum class CameraMode {
+	Orthographic = 1,
+	Perspective,
+	NUM_CAMERA_MODES
+};
 
 class Camera {
 
 public:
-	enum class CameraMode {
-		Orthographic = 1,
-		Perspective,
-		NUM_CAMERA_MODES
-	};
+
 
 	void SetColorTarget(Texture* color);
 	Texture* GetColorTarget() const;
@@ -40,6 +41,7 @@ public:
 	void TranslateCamera(float x, float y);
 	void TranslateCamera(Vec2 const& translationVec);
 
+	CameraMode GetCameraMode() const { return m_mode; }
 	Mat44 GetProjectionMatrix() const;
 	Mat44 GetViewMatrix() const;
 	Mat44 GetRenderMatrix() const;
@@ -49,8 +51,8 @@ public:
 	AABB2 GetViewport() const { return m_viewPort; }
 	AABB2 const GetCameraBounds() const { return AABB2(bottomLeft, topRight); }
 	float GetAspect() const { return m_aspect; }
-	float GetNear() const { return m_near;}
-	float GetFar() const { return m_far;}
+	float GetNear() const { return m_near; }
+	float GetFar() const { return m_far; }
 
 protected:
 	Mat44 GetOrthoMatrix() const;

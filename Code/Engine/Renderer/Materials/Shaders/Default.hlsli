@@ -12,13 +12,13 @@ struct v2p_t
     float2 uv : TEXCOORD;
 };
 
-cbuffer CameraConstants : register(b2)
+cbuffer CameraConstants : register(b0)
 {
     float4x4 ProjectionMatrix;
     float4x4 ViewMatrix;
 };
 
-cbuffer ModelConstants : register(b3)
+cbuffer ModelConstants : register(b1)
 {
     float4x4 ModelMatrix;
     float4 ModelColor;

@@ -651,7 +651,8 @@
   </ItemGroup>
   <ItemGroup>
     <Xml Include="Renderer\DefaultMaterial.xml" />
-    <Xml Include="Renderer\Materials\DefaultMaterial.xml" />
+    <Xml Include="Renderer\Materials\Default2DMaterial.xml" />
+    <Xml Include="Renderer\Materials\Default3DMaterial.xml" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

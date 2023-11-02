@@ -12,4 +12,5 @@ D3D12_RESOURCE_FLAGS LocalToD3D12(ResourceBindFlag flags);
 D3D12_DESCRIPTOR_HEAP_TYPE LocalToD3D12(DescriptorHeapType dHeapType);
 D3D12_FILL_MODE LocalToD3D12(FillMode fillMode);
 D3D12_CULL_MODE LocalToD3D12(CullMode cullMode);
+D3D12_COMPARISON_FUNC LocalToD3D12(DepthTest depthTest);
 BOOL LocalToD3D12(WindingOrder windingOrder);

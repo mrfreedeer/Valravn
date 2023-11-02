@@ -180,6 +180,9 @@ void Material::ParseDepthStencil(XMLElement const& xmlElement)
 	else {
 		ERROR_AND_DIE("UNSUPPORTED DEPTH TEST");
 	}
+
+	m_config.m_depthEnable = ParseXmlAttribute(xmlElement, "writeDepth", false);
+
 }
 
 char const* Material::GetEntryPoint(ShaderType shaderType) const

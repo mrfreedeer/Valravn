@@ -5,19 +5,22 @@
 #include <d3d12.h>
 #include <d3dx12.h> // Notice the X. These are the helper structures not the DX12 header
 
-Buffer::Buffer(Renderer* owner, size_t size, size_t strideSize /*= 0*/, MemoryUsage memoryUsage /*= MemoryUsage::Dynamic*/, void const* data /*= nullptr*/) :
-	m_owner(owner),
-	m_size(size),
-	m_stride(strideSize)
+Buffer::Buffer(BufferDesc const& bufferDesc) :
+	m_owner(bufferDesc.owner),
+	m_size(bufferDesc.size),
+	m_stride(bufferDesc.stride),
+	m_memoryUsage(bufferDesc.memoryUsage),
+	m_descriptorHeap(bufferDesc.descriptorHeap),
+	m_data(bufferDesc.data)
 {
 	m_buffer = new Resource();
-	switch (memoryUsage)
+	switch (m_memoryUsage)
 	{
 	case MemoryUsage::Default:
-		CreateDefaultBuffer(data);
+		CreateDefaultBuffer(m_data);
 		break;
 	case MemoryUsage::Dynamic:
-		CreateDynamicBuffer(data);
+		CreateDynamicBuffer(m_data);
 		break;
 	default:
 		break;

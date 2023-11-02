@@ -5,6 +5,7 @@
 #include "Engine/Renderer/VertexBuffer.hpp"
 #include "Engine/Renderer/Material.hpp"
 #include "Engine/Renderer/Texture.hpp"
+#include "Engine/Renderer/BitmapFont.hpp"
 #include "Engine/Core/Image.hpp"
 #include "Engine/Renderer/D3D12/Resource.hpp"
 #include "Engine/Renderer/GraphicsCommon.hpp"
@@ -437,6 +438,7 @@ void Renderer::CreateDefaultTextureTargets()
 	defaultDSTInfo.m_clearFormat = TextureFormat::D24_UNORM_S8_UINT;
 	defaultDSTInfo.m_name = "DefaultDepthTarget";
 	defaultDSTInfo.m_owner = this;
+	defaultDSTInfo.m_clearColour = Rgba8(255, 255, 255, 255);
 
 	m_defaultDepthTarget = CreateTexture(defaultDSTInfo);
 }
@@ -530,9 +532,13 @@ void Renderer::Startup()
 
 	CreateDefaultRootSignature();
 
-	std::string defaulMatPath = ENGINE_MAT_DIR;
-	defaulMatPath += "DefaultMaterial.xml";
-	m_defaultMaterial = CreateMaterial(defaulMatPath);
+	std::string default2DMatPath = ENGINE_MAT_DIR;
+	default2DMatPath += "Default2DMaterial.xml";
+	m_default2DMaterial = CreateMaterial(default2DMatPath);
+
+	std::string default3DMatPath = ENGINE_MAT_DIR;
+	default3DMatPath += "Default3DMaterial.xml";
+	m_default3DMaterial = CreateMaterial(default3DMatPath);
 
 	CreateCommandList(m_commandList, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_currentBackBuffer]);
 
@@ -553,9 +559,6 @@ void Renderer::Startup()
 	Image whiteTexelImg(IntVec2(1, 1), Rgba8::WHITE);
 	whiteTexelImg.m_imageFilePath = "DefaultTexture";
 	m_defaultTexture = CreateTextureFromImage(whiteTexelImg);
-
-	m_cameraCBO = new ConstantBuffer(this, sizeof(CameraConstants), sizeof(CameraConstants));
-	m_modelCBO = new ConstantBuffer(this, sizeof(ModelConstants), sizeof(ModelConstants));
 
 }
 
@@ -779,11 +782,20 @@ void Renderer::CreatePSOForMaterial(Material* material)
 	psoDesc.RasterizerState = rasterizerDesc;
 	psoDesc.BlendState = blendDesc;
 	psoDesc.DepthStencilState.DepthEnable = matConfig.m_depthEnable;
+	psoDesc.DepthStencilState.DepthFunc = LocalToD3D12(matConfig.m_depthFunc);
+	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 	psoDesc.DepthStencilState.StencilEnable = FALSE;
+	psoDesc.DepthStencilState.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+	psoDesc.DepthStencilState.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+	const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp = // a stencil operation structure, does not really matter since stencil testing is turned off
+	{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+	psoDesc.DepthStencilState.FrontFace = defaultStencilOp; // both front and back facing polygons get the same treatment
+	psoDesc.DepthStencilState.BackFace = defaultStencilOp;
 	psoDesc.SampleMask = UINT_MAX;
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE(matConfig.m_topology);
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	psoDesc.SampleDesc.Count = 1;
 
 	HRESULT psoCreation = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&material->m_PSO));
@@ -843,24 +855,46 @@ void Renderer::SetDebugName(ID3D12Object* object, char const* name)
 #endif
 }
 
-void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
+void Renderer::DrawImmediateCtx(ImmediateContext& ctx, DescriptorHeap* descriptorHeap)
 {
 	Texture* currentRt = ctx.m_renderTargets[0];
 	Resource* currentRtResc = currentRt->GetResource();
 	currentRtResc->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
+
+	Texture* depthTarget = ctx.m_depthTarget;
+	Resource* depthTargetRsc = depthTarget->GetResource();
+	depthTargetRsc->TransitionTo(D3D12_RESOURCE_STATE_DEPTH_WRITE, m_commandList.Get());
 
 	SetMaterialPSO(ctx.m_material);
 	for (auto& [slot, texture] : ctx.m_boundTextures) {
 		CopyTextureToHeap(texture, ctx.m_srvHandleStart, slot);
 	}
 
+	BufferDesc bufferDesc = {};
+	bufferDesc.data = &ctx.m_modelConstants;
+	bufferDesc.descriptorHeap = descriptorHeap;
+	bufferDesc.memoryUsage = MemoryUsage::Dynamic;
+	bufferDesc.owner = this;
+	bufferDesc.size = sizeof(ModelConstants);
+	bufferDesc.stride = sizeof(ModelConstants);
+
+	ctx.m_modelCBO = new ConstantBuffer(bufferDesc);
+
+	bufferDesc.data = &ctx.m_cameraConstants;
+	bufferDesc.size = sizeof(CameraConstants);
+	bufferDesc.stride = sizeof(CameraConstants);
+
+	ctx.m_cameraCBO = new ConstantBuffer(bufferDesc);
+
+	CopyCBufferToHeap(ctx.m_cameraCBO, ctx.m_cbvHandleStart, 0);
+	CopyCBufferToHeap(ctx.m_modelCBO, ctx.m_cbvHandleStart, 1);
+
 	for (auto& [slot, cbuffer] : ctx.m_boundCBuffers) {
 		CopyCBufferToHeap(cbuffer, ctx.m_cbvHandleStart, slot);
 	}
 
-
-
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
+	DescriptorHeap* dsvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::DSV);
 	DescriptorHeap* srvUAVCBVHeap = GetGPUDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
 	DescriptorHeap* samplerHeap = GetGPUDescriptorHeap(DescriptorHeapType::SAMPLER);
 	ID3D12DescriptorHeap* allDescriptorHeaps[] = {
@@ -888,8 +922,11 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 	// Later, each texture has its handle
 	//ResourceView* rtv =  m_defaultRenderTarget->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT);
 	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = currentRt->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();
+	ResourceView* dsvView = ctx.m_depthTarget->GetOrCreateView(RESOURCE_BIND_DEPTH_STENCIL_BIT);
+	D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = dsvView->GetHandle();
+
 	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
-	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, nullptr);
+	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, &dsvHandle);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	D3D12_VERTEX_BUFFER_VIEW D3DbufferView = {};
@@ -933,34 +970,44 @@ void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* verte
 	m_currentDrawCtx.m_srvHandleStart = m_srvHandleStart;
 	m_currentDrawCtx.m_cbvHandleStart = m_cbvHandleStart;
 
-	auto findHighestValTex = [](const std::pair<unsigned int, Texture*>& a, const std::pair<unsigned int, Texture*>& b)->bool { return a.first < b.first; };
+	auto findHighestValTex = [](const std::pair<unsigned int, Texture const*>& a, const std::pair<unsigned int, Texture const*>& b)->bool { return a.first < b.first; };
 	auto findHighestValCbuffer = [](const std::pair<unsigned int, ConstantBuffer*>& a, const std::pair<unsigned int, ConstantBuffer*>& b)->bool { return a.first < b.first; };
 
 	auto texMaxIt = std::max_element(m_currentDrawCtx.m_boundTextures.begin(), m_currentDrawCtx.m_boundTextures.end(), findHighestValTex);
 	auto cBufferMaxIt = std::max_element(m_currentDrawCtx.m_boundCBuffers.begin(), m_currentDrawCtx.m_boundCBuffers.end(), findHighestValCbuffer);
 
-	m_srvHandleStart += texMaxIt->first + 1;
-	m_cbvHandleStart += cBufferMaxIt->first + 1;
+	unsigned int texMax = (texMaxIt != m_currentDrawCtx.m_boundTextures.end()) ? texMaxIt->first : 0;
+	unsigned int cBufferMax = (cBufferMaxIt != m_currentDrawCtx.m_boundCBuffers.end()) ? cBufferMaxIt->first : 0;
 
+	m_srvHandleStart += texMax + 1;
+	m_cbvHandleStart += cBufferMax + 1;
+
+	m_cbvHandleStart += 2;
 
 	const UINT vertexBufferSize = numVertexes * sizeof(Vertex_PCU);
 
-	VertexBuffer* vBuffer = new VertexBuffer(this, vertexBufferSize, sizeof(Vertex_PCU), MemoryUsage::Dynamic, vertexes);
+	BufferDesc bufferDesc = {};
+	bufferDesc.data = vertexes;
+	bufferDesc.descriptorHeap = nullptr;
+	bufferDesc.memoryUsage = MemoryUsage::Dynamic;
+	bufferDesc.owner = this;
+	bufferDesc.size = vertexBufferSize;
+	bufferDesc.stride = sizeof(Vertex_PCU);
+
+	VertexBuffer* vBuffer = new VertexBuffer(bufferDesc);
 	m_currentDrawCtx.m_immediateBuffer = vBuffer;
 	m_immediateCtxs.push_back(m_currentDrawCtx);
-
-	m_currentDrawCtx = ImmediateContext();
 
 }
 
 void Renderer::SetModelMatrix(Mat44 const& modelMat)
 {
-
+	m_currentDrawCtx.m_modelConstants.ModelMatrix = modelMat;
 }
 
 void Renderer::SetModelColor(Rgba8 const& modelColor)
 {
-
+	modelColor.GetAsFloats(m_currentDrawCtx.m_modelConstants.ModelColor);
 }
 
 void Renderer::ExecuteCommandLists(ID3D12CommandList** commandLists, unsigned int count)
@@ -1028,6 +1075,7 @@ Texture* Renderer::CreateTexture(TextureCreateInfo& creationInfo)
 		handle = new Resource();
 		handle->m_currentState = initialResourceState;
 		D3D12_CLEAR_VALUE clearValueRT = {};
+		D3D12_CLEAR_VALUE clearValueDST = {};
 		D3D12_CLEAR_VALUE* clearValue = NULL;
 
 		// If it can be bound as RT then it needs the clear colour, otherwise it's null
@@ -1035,6 +1083,12 @@ Texture* Renderer::CreateTexture(TextureCreateInfo& creationInfo)
 			creationInfo.m_clearColour.GetAsFloats(clearValueRT.Color);
 			clearValueRT.Format = LocalToD3D12(creationInfo.m_clearFormat);
 			clearValue = &clearValueRT;
+		}
+
+		if (creationInfo.m_bindFlags & RESOURCE_BIND_DEPTH_STENCIL_BIT) {
+			creationInfo.m_clearColour.GetAsFloats(clearValueDST.Color);
+			clearValueDST.Format = LocalToD3D12(TextureFormat::D24_UNORM_S8_UINT);
+			clearValue = &clearValueDST;
 		}
 
 		HRESULT textureCreateHR = m_device->CreateCommittedResource(
@@ -1180,11 +1234,11 @@ ResourceView* Renderer::CreateDepthStencilView(ResourceViewInfo const& viewInfo)
 	return newResourceView;
 }
 
-ResourceView* Renderer::CreateConstantBufferView(ResourceViewInfo const& viewInfo) const
+ResourceView* Renderer::CreateConstantBufferView(ResourceViewInfo const& viewInfo, DescriptorHeap* descriptorHeap) const
 {
 	D3D12_CONSTANT_BUFFER_VIEW_DESC* cbvDesc = viewInfo.m_cbvDesc;
 
-	DescriptorHeap* cbvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
+	DescriptorHeap* cbvDescriptorHeap = (descriptorHeap) ? descriptorHeap : GetDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = cbvDescriptorHeap->GetNextCPUHandle();
 
 	m_device->CreateConstantBufferView(cbvDesc, cpuHandle);
@@ -1287,12 +1341,23 @@ void Renderer::SetBlendMode(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc)
 	}
 }
 
+BitmapFont* Renderer::CreateBitmapFont(std::filesystem::path bitmapPath)
+{
+	std::string filename = bitmapPath.string();
+	std::string filePathString = bitmapPath.replace_extension(".png").string();
+	Texture* bitmapTexture = CreateOrGetTextureFromFile(filePathString.c_str());
+	BitmapFont* newBitmapFont = new BitmapFont(filename.c_str(), *bitmapTexture);
+
+	m_loadedFonts.push_back(newBitmapFont);
+	return newBitmapFont;
+}
+
 void Renderer::ResetGPUDescriptorHeaps()
 {
 	//#TODO
 }
 
-ResourceView* Renderer::CreateResourceView(ResourceViewInfo const& resourceViewInfo) const
+ResourceView* Renderer::CreateResourceView(ResourceViewInfo const& resourceViewInfo, DescriptorHeap* descriptorHeap) const
 {
 	switch (resourceViewInfo.m_viewType)
 	{
@@ -1306,7 +1371,7 @@ ResourceView* Renderer::CreateResourceView(ResourceViewInfo const& resourceViewI
 	case RESOURCE_BIND_DEPTH_STENCIL_BIT:
 		return CreateDepthStencilView(resourceViewInfo);
 	case RESOURCE_BIND_CONSTANT_BUFFER_VIEW_BIT:
-		return CreateConstantBufferView(resourceViewInfo);
+		return CreateConstantBufferView(resourceViewInfo, descriptorHeap);
 	case RESOURCE_BIND_UNORDERED_ACCESS_VIEW_BIT:
 		break;
 	}
@@ -1314,12 +1379,25 @@ ResourceView* Renderer::CreateResourceView(ResourceViewInfo const& resourceViewI
 	return nullptr;
 }
 
+BitmapFont* Renderer::CreateOrGetBitmapFont(std::filesystem::path bitmapPath)
+{
+	for (int loadedFontIndex = 0; loadedFontIndex < m_loadedFonts.size(); loadedFontIndex++) {
+		BitmapFont*& bitmapFont = m_loadedFonts[loadedFontIndex];
+		if (bitmapFont->m_fontFilePathNameWithNoExtension == bitmapPath.string()) {
+			return bitmapFont;
+		}
+	}
+
+	return CreateBitmapFont(bitmapPath);
+
+}
+
 void Renderer::BindConstantBuffer(ConstantBuffer* cBuffer, unsigned int slot /*= 0*/)
 {
 	m_currentDrawCtx.m_boundCBuffers[slot] = cBuffer;
 }
 
-void Renderer::BindTexture(Texture* texture, unsigned int slot /*= 0*/)
+void Renderer::BindTexture(Texture const* texture, unsigned int slot /*= 0*/)
 {
 	m_currentDrawCtx.m_boundTextures[slot] = texture;
 }
@@ -1329,9 +1407,9 @@ void Renderer::BindMaterial(Material* mat)
 	m_currentDrawCtx.m_material = mat;
 }
 
-void Renderer::CopyTextureToHeap(Texture* textureToBind, unsigned int handleStart, unsigned int slot)
+void Renderer::CopyTextureToHeap(Texture const* textureToBind, unsigned int handleStart, unsigned int slot)
 {
-	Texture* usedTex = textureToBind;
+	Texture* usedTex = const_cast<Texture*>(textureToBind);
 	if (!textureToBind) {
 		usedTex = m_defaultTexture;
 	}
@@ -1363,10 +1441,10 @@ void Renderer::CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int hand
 
 }
 
-void Renderer::DrawAllImmediateContexts()
+void Renderer::DrawAllImmediateContexts(DescriptorHeap* descriptorHeap)
 {
 	for (ImmediateContext& ctx : m_immediateCtxs) {
-		DrawImmediateCtx(ctx);
+		DrawImmediateCtx(ctx, descriptorHeap);
 	}
 }
 
@@ -1374,6 +1452,16 @@ void Renderer::ClearAllImmediateContexts()
 {
 	for (ImmediateContext& ctx : m_immediateCtxs) {
 		if (ctx.m_immediateBuffer) {
+			if (ctx.m_cameraCBO) {
+				delete ctx.m_cameraCBO;
+				ctx.m_cameraCBO = nullptr;
+			}
+
+			if (ctx.m_modelCBO) {
+				delete ctx.m_modelCBO;
+				ctx.m_modelCBO = nullptr;
+			}
+
 			delete ctx.m_immediateBuffer;
 			ctx.m_immediateBuffer = nullptr;
 		}
@@ -1420,7 +1508,7 @@ void Renderer::BeginFrame()
 	// However, when ExecuteCommandList() is called on a particular command 
 	// list, that command list can then be reset at any time and must be before 
 	// re-recording.
-	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_currentBackBuffer].Get(), m_defaultMaterial->m_PSO), "COULD NOT RESET COMMAND LIST");
+	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_currentBackBuffer].Get(), m_default2DMaterial->m_PSO), "COULD NOT RESET COMMAND LIST");
 
 	BindTexture(nullptr);
 	activeRTResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
@@ -1437,6 +1525,7 @@ void Renderer::BeginFrame()
 
 	ResetGPUDescriptorHeaps();
 	ClearScreen(m_defaultRenderTarget->GetClearColour());
+	ClearDepth();
 	// Record commands.
 	//float clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	//m_defaultRenderTarget->GetClearColour().GetAsFloats(clearColor);
@@ -1451,8 +1540,9 @@ void Renderer::BeginFrame()
 
 void Renderer::EndFrame()
 {
+	DescriptorHeap* engineCBufferHeap = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, m_immediateCtxs.size() * 2);
 
-	DrawAllImmediateContexts();
+	DrawAllImmediateContexts(engineCBufferHeap);
 
 	Resource* defaultRTResource = m_defaultRenderTarget->GetResource();
 	defaultRTResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_DEST, m_commandList.Get());
@@ -1487,6 +1577,9 @@ void Renderer::EndFrame()
 	WaitForGPU();
 
 	ClearAllImmediateContexts();
+	delete engineCBufferHeap;
+	engineCBufferHeap = nullptr;
+
 	m_currentFrame++;
 
 }
@@ -1558,7 +1651,13 @@ void Renderer::Shutdown()
 void Renderer::BeginCamera(Camera const& camera)
 {
 	m_currentCamera = &camera;
-	BindMaterial(m_defaultMaterial);
+	if (camera.GetCameraMode() == CameraMode::Orthographic) {
+		BindMaterial(m_default2DMaterial);
+	}
+	else {
+		BindMaterial(m_default3DMaterial);
+	}
+
 	BindTexture(m_defaultTexture);
 	SetSamplerMode(SamplerMode::POINTCLAMP);
 	m_currentDrawCtx.m_renderTargets[0] = GetActiveColorTarget();
@@ -1572,14 +1671,8 @@ void Renderer::BeginCamera(Camera const& camera)
 	m_currentDrawCtx.m_cameraConstants = cameraConstants;
 	m_currentDrawCtx.m_modelConstants = ModelConstants();
 
-	m_cameraCBO->CopyCPUToGPU(&cameraConstants, sizeof(CameraConstants));
-
-	ModelConstants m = ModelConstants();
-	m_modelCBO->CopyCPUToGPU(&m, sizeof(ModelConstants));
-
-
-	BindConstantBuffer(m_cameraCBO, 2);
-	BindConstantBuffer(m_modelCBO, 3);
+	//BindConstantBuffer(m_cameraCBO, 2);
+	//BindConstantBuffer(m_modelCBO, 3);
 }
 
 void Renderer::EndCamera(Camera const& camera)
@@ -1589,16 +1682,18 @@ void Renderer::EndCamera(Camera const& camera)
 	}
 
 	m_currentCamera = nullptr;
+	m_currentDrawCtx = ImmediateContext();
 }
 
 void Renderer::ClearScreen(Rgba8 const& color)
 {
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
+	Texture* currentBackBuffer = GetActiveColorTarget();
 
 	float colorAsArray[4];
-	//color.GetAsFloats(colorAsArray); #TODO FIX THIS
-	m_defaultRenderTarget->GetClearColour().GetAsFloats(colorAsArray);
-	Resource* rtResource = m_defaultRenderTarget->GetResource();
+	color.GetAsFloats(colorAsArray);
+	//currentBackBuffer->GetClearColour().GetAsFloats(colorAsArray);
+	Resource* rtResource = currentBackBuffer->GetResource();
 	rtResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 	//CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
 	//	GetActiveColorTarget().Get(),
@@ -1608,7 +1703,7 @@ void Renderer::ClearScreen(Rgba8 const& color)
 
 	//m_commandList->ResourceBarrier(1, &barrier);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = m_defaultRenderTarget->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();;
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = currentBackBuffer->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();;
 
 	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
 	//	m_currentBackBuffer, m_RTVdescriptorSize);
@@ -1617,8 +1712,16 @@ void Renderer::ClearScreen(Rgba8 const& color)
 
 }
 
+void Renderer::ClearDepth(float clearDepth /*= 0.0f*/)
+{
+	ResourceView* dsvView = m_defaultDepthTarget->GetOrCreateView(RESOURCE_BIND_DEPTH_STENCIL_BIT);
+	Resource* dsvRsc = m_defaultDepthTarget->GetResource();
+	dsvRsc->TransitionTo(D3D12_RESOURCE_STATE_DEPTH_WRITE, m_commandList.Get());
 
+	D3D12_CLEAR_FLAGS clearFlags = D3D12_CLEAR_FLAG_DEPTH;
 
+	m_commandList->ClearDepthStencilView(dsvView->GetHandle(), clearFlags, clearDepth, 0, 0, NULL);
+}
 
 LiveObjectReporter::~LiveObjectReporter()
 {

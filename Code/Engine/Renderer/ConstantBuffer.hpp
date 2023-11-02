@@ -8,7 +8,7 @@ class ConstantBuffer : Buffer
 	friend class Renderer;
 
 public:
-	ConstantBuffer(Renderer* owner, size_t size, size_t strideSize = 0, MemoryUsage memoryUsage = MemoryUsage::Dynamic, void const* data = nullptr);
+	ConstantBuffer(BufferDesc const& bufferDesc);
 	~ConstantBuffer();
 	ResourceView* GetOrCreateView();
 
