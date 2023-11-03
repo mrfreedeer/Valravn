@@ -651,6 +651,9 @@
   </ItemGroup>
   <ItemGroup>
     <Xml Include="Renderer\DefaultMaterial.xml" />
+    <Xml Include="Renderer\Materials\DebugAlwaysMaterial.xml" />
+    <Xml Include="Renderer\Materials\DebugDepthMaterial.xml" />
+    <Xml Include="Renderer\Materials\DebugXRayMaterial.xml" />
     <Xml Include="Renderer\Materials\Default2DMaterial.xml" />
     <Xml Include="Renderer\Materials\Default3DMaterial.xml" />
   </ItemGroup>

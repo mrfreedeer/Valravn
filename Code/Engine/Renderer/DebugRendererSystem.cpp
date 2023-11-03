@@ -54,6 +54,8 @@ private:
 	std::vector<DebugShape*> m_screnTextShapes[(int)ScrenTextType::NUM_SCREEN_TEXT_TYPES];
 
 	DebugRenderConfig m_config;
+
+	Material* m_materials[(int)DebugRenderMode::NUM_DEBUG_RENDER_MODES] = {};
 };
 
 
@@ -119,6 +121,12 @@ void DebugRenderSystem::Startup()
 
 		listMutex.unlock();
 	}
+
+
+	std::string enginePath = ENGINE_MAT_DIR;
+	m_materials[(int)DebugRenderMode::ALWAYS] = m_config.m_renderer->CreateOrGetMaterial(enginePath + "DebugAlwaysMaterial");
+	m_materials[(int)DebugRenderMode::USEDEPTH] = m_config.m_renderer->CreateOrGetMaterial(enginePath + "DebugDepthMaterial");
+	m_materials[(int)DebugRenderMode::XRAY] = m_config.m_renderer->CreateOrGetMaterial(enginePath + "DebugXRayMaterial");
 }
 
 void DebugRenderSystem::Shutdown()
@@ -308,9 +316,9 @@ void DebugRenderSystem::RenderWorldShapes(Camera const& camera) const
 {
 	if (!m_isVisible) return;
 	//#TODO DX12 FIXTHIS
-	/*Renderer* renderer = m_config.m_renderer;
+	Renderer* renderer = m_config.m_renderer;
 	renderer->BeginCamera(camera); {
-		renderer->BindShader(nullptr);
+		renderer->BindMaterial(nullptr);
 		renderer->BindTexture(nullptr);
 
 		RenderWireframeShapes(renderer);
@@ -318,7 +326,7 @@ void DebugRenderSystem::RenderWorldShapes(Camera const& camera) const
 		RenderDebugShapes(renderer);
 		RenderTextDebugShapes(renderer);
 	}
-	renderer->EndCamera(camera);*/
+	renderer->EndCamera(camera);
 
 }
 
@@ -330,14 +338,14 @@ void DebugRenderSystem::RenderWireframeShapes(Renderer* renderer) const
 
 	//#TODO DX12 FIXTHIS
 
-	/*for (int shapeIndex = 0; shapeIndex < m_wireframeShapes.size(); shapeIndex++) {
+	for (int shapeIndex = 0; shapeIndex < m_wireframeShapes.size(); shapeIndex++) {
 		DebugShape* const shape = m_wireframeShapes[shapeIndex];
 		if (shape) {
 			renderer->SetModelMatrix(shape->GetModelMatrix());
 			renderer->SetModelColor(shape->GetModelColor());
 			shape->Render(renderer);
 		}
-	}*/
+	}
 
 	m_wireFrameShapesMutex.unlock();
 }
@@ -346,13 +354,10 @@ void DebugRenderSystem::RenderBillboardShapes(Renderer* renderer, Camera const& 
 {
 	//#TODO DX12 FIXTHIS
 
-	/*renderer->SetSamplerMode(SamplerMode::POINTCLAMP);
-	renderer->SetRasterizerState(CullMode::NONE, FillMode::SOLID, WindingOrder::COUNTERCLOCKWISE);
-	renderer->SetDepthStencilState(DepthTest::ALWAYS, false);
-	renderer->SetBlendMode(BlendMode::ALPHA);
+	renderer->BindMaterial(m_materials[(int)DebugRenderMode::ALWAYS]);
 	BitmapFont const* font = GetBitmapFont();
 
-	renderer->BindTexture(&font->GetTexture());*/
+	renderer->BindTexture(&font->GetTexture());
 
 	m_billboardsMutex.lock();
 
@@ -361,8 +366,8 @@ void DebugRenderSystem::RenderBillboardShapes(Renderer* renderer, Camera const& 
 		if (!shape) continue;
 		Mat44 modelMat = shape->GetBillboardModelMatrix(camera);
 		modelMat.SetTranslation3D(shape->GetModelMatrix().GetTranslation3D());
-		/*renderer->SetModelMatrix(modelMat);
-		renderer->SetModelColor(shape->GetModelColor());*/
+		renderer->SetModelMatrix(modelMat);
+		renderer->SetModelColor(shape->GetModelColor());
 		shape->Render(renderer);
 	}
 
@@ -380,14 +385,13 @@ void DebugRenderSystem::RenderDebugShapes(Renderer* renderer) const
 
 		std::vector<DebugShape*>const& debugShapeList = m_debugShapes[debugRenderTypeIndex];
 		SetRenderModes((DebugRenderMode)debugRenderTypeIndex);
-		//#TODO DX12 FIXTHIS
 
 		for (int shapeIndex = 0; shapeIndex < (int)debugShapeList.size(); shapeIndex++) {
 			DebugShape* const shape = debugShapeList[shapeIndex];
 			if (shape) {
-			/*	renderer->SetModelMatrix(shape->GetModelMatrix());
+				renderer->SetModelMatrix(shape->GetModelMatrix());
 				renderer->SetModelColor(shape->GetModelColor());
-				shape->Render(renderer);*/
+				shape->Render(renderer);
 			}
 		}
 
@@ -406,7 +410,6 @@ void DebugRenderSystem::RenderTextDebugShapes(Renderer* renderer) const
 		SetRenderModes((DebugRenderMode)debugRenderTypeIndex);
 		//#TODO DX12 FIXTHIS
 
-		/*renderer->SetRasterizerState(CullMode::NONE, FillMode::SOLID, WindingOrder::COUNTERCLOCKWISE);
 		for (int shapeIndex = 0; shapeIndex < (int)debugShapeList.size(); shapeIndex++) {
 			DebugShape* const shape = debugShapeList[shapeIndex];
 			if (shape) {
@@ -414,7 +417,7 @@ void DebugRenderSystem::RenderTextDebugShapes(Renderer* renderer) const
 				renderer->SetModelColor(shape->GetModelColor());
 				shape->Render(renderer);
 			}
-		}*/
+		}
 
 		listMutex.unlock();
 	}
@@ -428,14 +431,14 @@ void DebugRenderSystem::RenderScreenShapes(Camera const& camera) const
 	Renderer* renderer = m_config.m_renderer;
 	//#TODO DX12 FIXTHIS
 
-	//renderer->BeginCamera(camera);
-	//renderer->BindShader(nullptr);
-	//renderer->SetBlendMode(BlendMode::ALPHA);
+	renderer->BeginCamera(camera);
+	Material* default2DMat = renderer->CreateOrGetMaterial("Default2DMaterial");
+	renderer->BindMaterial(default2DMat);
 
-	//RenderFreeScreenText(renderer);
-	//RenderTextMessages(renderer, camera);
+	RenderFreeScreenText(renderer);
+	RenderTextMessages(renderer, camera);
 
-	//renderer->EndCamera(camera);
+	renderer->EndCamera(camera);
 
 }
 
@@ -451,8 +454,8 @@ void DebugRenderSystem::RenderFreeScreenText(Renderer* renderer) const
 		if (shape) {
 			//#TODO DX12 FIXTHIS
 
-			//renderer->SetModelColor(shape->GetModelColor());
-			//shape->Render(renderer);
+			renderer->SetModelColor(shape->GetModelColor());
+			shape->Render(renderer);
 		}
 	}
 
@@ -499,8 +502,10 @@ void DebugRenderSystem::RenderTextMessages(Renderer* renderer, Camera const& cam
 	listMutex.unlock();
 	//#TODO DX12 FIXTHIS
 
-	//renderer->BindTexture(&font->GetTexture());
-	//renderer->DrawVertexArray(textVerts);
+	renderer->BindTexture(&font->GetTexture());
+	if (textVerts.size() > 0) {
+		renderer->DrawVertexArray(textVerts);
+	}
 }
 
 void DebugRenderSystem::AddShape(DebugShape* newShape)
@@ -612,34 +617,23 @@ void DebugRenderSystem::SetRenderModes(DebugRenderMode renderMode) const
 	Renderer* renderer = m_config.m_renderer;
 	//#TODO DX12 FIXTHIS
 
-	/*switch (renderMode)
+	switch (renderMode)
 	{
 	case DebugRenderMode::ALWAYS:
-		renderer->SetRasterizerState(CullMode::NONE, FillMode::SOLID, WindingOrder::COUNTERCLOCKWISE);
-		renderer->SetDepthStencilState(DepthTest::ALWAYS, false);
-		renderer->SetBlendMode(BlendMode::ALPHA);
+		renderer->BindMaterial(m_materials[(int)DebugRenderMode::ALWAYS]);
 		break;
 	case DebugRenderMode::USEDEPTH:
-		renderer->SetRasterizerState(CullMode::BACK, FillMode::SOLID, WindingOrder::COUNTERCLOCKWISE);
-		renderer->SetDepthStencilState(DepthTest::LESSEQUAL, true);
-		renderer->SetBlendMode(BlendMode::OPAQUE);
+		renderer->BindMaterial(m_materials[(int)DebugRenderMode::USEDEPTH]);
 		break;
 	case DebugRenderMode::XRAY:
-		renderer->SetRasterizerState(CullMode::BACK, FillMode::SOLID, WindingOrder::COUNTERCLOCKWISE);
-		renderer->SetDepthStencilState(DepthTest::ALWAYS, false);
-		renderer->SetBlendMode(BlendMode::ALPHA);
+		renderer->BindMaterial(m_materials[(int)DebugRenderMode::XRAY]);
 		break;
-
-	}*/
+	}
 }
 
 BitmapFont* DebugRenderSystem::GetBitmapFont() const
-{	
-
-	//#TODO DX12 FIXTHIS
-
-	return nullptr;
-	//return m_config.m_renderer->CreateOrGetBitmapFont(m_config.m_fontName.c_str());
+{
+	return m_config.m_renderer->CreateOrGetBitmapFont(m_config.m_fontName.c_str());
 }
 
 static DebugRenderSystem* debugRenderSystem = nullptr;

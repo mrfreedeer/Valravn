@@ -16,6 +16,7 @@
 #include "Engine/Core/Vertex_PCU.hpp"
 #include "Engine/Core/EngineCommon.hpp"
 #include "Engine/Math/Vec4.hpp"
+#include "Engine/Renderer/DebugRendererSystem.hpp"
 #include <dxgidebug.h>
 #include <d3dx12.h> // Notice the X. These are the helper structures not the DX12 header
 
@@ -560,6 +561,13 @@ void Renderer::Startup()
 	whiteTexelImg.m_imageFilePath = "DefaultTexture";
 	m_defaultTexture = CreateTextureFromImage(whiteTexelImg);
 
+	DebugRenderConfig debugSystemConfig;
+	debugSystemConfig.m_renderer = this;
+	debugSystemConfig.m_startHidden = false;
+	debugSystemConfig.m_fontName = "Data/Images/SquirrelFixedFont";
+
+	DebugRenderSystemStartup(debugSystemConfig);
+
 }
 
 
@@ -640,7 +648,7 @@ Material* Renderer::CreateMaterial(std::string const& materialXMLFile)
 	Material* newMat = new Material();
 	newMat->LoadFromXML(matProperty);
 	newMat->m_config.m_name = matName;
-
+	newMat->m_config.m_src = materialXMLFile;
 	CreatePSOForMaterial(newMat);
 
 	m_loadedMaterials.push_back(newMat);
@@ -839,6 +847,18 @@ Material* Renderer::GetMaterialForName(char const* materialName)
 	for (int shaderIndex = 0; shaderIndex < m_loadedMaterials.size(); shaderIndex++) {
 		Material* shader = m_loadedMaterials[shaderIndex];
 		if (shader->GetName() == shaderNoExtension) {
+			return shader;
+		}
+	}
+	return nullptr;
+}
+
+Material* Renderer::GetMaterialForPath(char const* materialPath)
+{
+	std::string shaderNoExtension = std::filesystem::path(materialPath).replace_extension("").string();
+	for (int shaderIndex = 0; shaderIndex < m_loadedMaterials.size(); shaderIndex++) {
+		Material* shader = m_loadedMaterials[shaderIndex];
+		if (shader->GetPath() == shaderNoExtension) {
 			return shader;
 		}
 	}
@@ -1404,6 +1424,7 @@ void Renderer::BindTexture(Texture const* texture, unsigned int slot /*= 0*/)
 
 void Renderer::BindMaterial(Material* mat)
 {
+	if(!mat) mat = m_default3DMaterial;	
 	m_currentDrawCtx.m_material = mat;
 }
 
@@ -1478,6 +1499,8 @@ void Renderer::SetMaterialPSO(Material* mat)
 
 void Renderer::BeginFrame()
 {
+	DebugRenderBeginFrame();
+
 	m_currentDrawCtx = ImmediateContext();
 	m_srvHandleStart = SRV_HANDLE_START;
 	m_cbvHandleStart = CBV_HANDLE_START;
@@ -1531,6 +1554,8 @@ void Renderer::BeginFrame()
 	//m_defaultRenderTarget->GetClearColour().GetAsFloats(clearColor);
 	//m_commandList->ClearRenderTargetView(currentRTVHandle, clearColor, 0, nullptr);
 
+
+
 #if defined(ENGINE_USE_IMGUI)
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
@@ -1540,6 +1565,8 @@ void Renderer::BeginFrame()
 
 void Renderer::EndFrame()
 {
+	DebugRenderEndFrame();
+
 	DescriptorHeap* engineCBufferHeap = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, m_immediateCtxs.size() * 2);
 
 	DrawAllImmediateContexts(engineCBufferHeap);
@@ -1645,7 +1672,7 @@ void Renderer::Shutdown()
 	//m_dxgiFactory.Get()->Release();
 	m_dxgiFactory.Reset();
 
-
+	DebugRenderSystemShutdown();
 }
 
 void Renderer::BeginCamera(Camera const& camera)

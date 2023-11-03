@@ -61,8 +61,10 @@ Clock::~Clock()
 			childClock->SetParent(*m_parent);
 		}
 		else {
-			delete childClock;
-			childClock = nullptr;
+			if (childClock) {
+				delete childClock;
+				childClock = nullptr;
+			}
 		}
 	}
 

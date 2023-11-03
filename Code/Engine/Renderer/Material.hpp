@@ -27,6 +27,7 @@ struct ShaderLoadInfo {
 struct MaterialConfig
 {
 	std::string m_name = "Unnamed";
+	std::string m_src = "";
 	ShaderLoadInfo m_shaders[ShaderType::NUM_SHADER_TYPES] = {};
 
 	BlendMode m_blendMode = BlendMode::OPAQUE;
@@ -57,6 +58,7 @@ class Material
 public:
 	Material(const Material& copy) = delete;
 	const std::string& GetName() const;
+	const std::string& GetPath() const;
 private:
 	Material(const MaterialConfig& config);
 	Material() = default;

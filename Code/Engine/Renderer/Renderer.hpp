@@ -145,7 +145,8 @@ public:
 	DescriptorHeap* GetGPUDescriptorHeap(DescriptorHeapType descriptorHeapType) const;
 	ResourceView* CreateResourceView(ResourceViewInfo const& resourceViewInfo, DescriptorHeap* descriptorHeap = nullptr) const;
 	BitmapFont* CreateOrGetBitmapFont(std::filesystem::path bitmapPath);
-
+	Material* GetMaterialForName(char const* materialName);
+	Material* GetMaterialForPath(char const* materialPath);
 
 	// Binds
 	void BindConstantBuffer(ConstantBuffer* cBuffer, unsigned int slot = 0);
@@ -196,7 +197,6 @@ private:
 	void CreatePSOForMaterial(Material* material);
 	ShaderByteCode* CompileOrGetShaderBytes(ShaderLoadInfo const& shaderLoadInfo);
 	ShaderByteCode* GetByteCodeForShaderSrc(ShaderLoadInfo const& shaderLoadInfo);
-	Material* GetMaterialForName(char const* materialName);
 	void CreateViewport();	
 	Texture* CreateTexture(TextureCreateInfo& creationInfo);
 	void DestroyTexture(Texture* textureToDestroy);

@@ -723,6 +723,15 @@
     <Xml Include="Renderer\Materials\Default3DMaterial.xml">
       <Filter>Renderer\Materials</Filter>
     </Xml>
+    <Xml Include="Renderer\Materials\DebugAlwaysMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
+    <Xml Include="Renderer\Materials\DebugDepthMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
+    <Xml Include="Renderer\Materials\DebugXRayMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Renderer\Materials\Shaders\Stages\Default_p.hlsl">

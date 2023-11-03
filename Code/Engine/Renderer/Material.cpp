@@ -25,6 +25,11 @@ const std::string& Material::GetName() const
 	return m_config.m_name;
 }
 
+const std::string& Material::GetPath() const
+{
+	return m_config.m_src;
+}
+
 void Material::LoadFromXML(XMLElement const* xmlElement)
 {
 	while (xmlElement) {
