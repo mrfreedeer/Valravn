@@ -19,6 +19,7 @@ enum ShaderType: unsigned int {
 
 struct ShaderLoadInfo {
 	std::string m_shaderSrc = "";
+	std::string m_shaderName = "";
 	std::string m_shaderEntryPoint = "";
 	ShaderType m_shaderType = ShaderType::InvalidShader;
 	bool m_antialiasing = false;
@@ -42,6 +43,7 @@ struct MaterialConfig
 
 struct ShaderByteCode {
 	std::string m_src = "";
+	std::string m_shaderName = "";
 	std::vector<uint8_t> m_byteCode;
 	ShaderType m_shaderType = ShaderType::InvalidShader;
 };

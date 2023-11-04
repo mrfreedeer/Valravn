@@ -731,12 +731,21 @@
     <Xml Include="Renderer\Materials\DebugXRayMaterial.xml">
       <Filter>Renderer\Materials</Filter>
     </Xml>
+    <Xml Include="Renderer\Materials\ColorBandFXMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Renderer\Materials\Shaders\Stages\Default_p.hlsl">
       <Filter>Renderer\Materials\Shaders\Stages</Filter>
     </FxCompile>
     <FxCompile Include="Renderer\Materials\Shaders\Stages\Default_v.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\ColorBandEffect_p.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\ColorBandEffect_v.hlsl">
       <Filter>Renderer\Materials\Shaders\Stages</Filter>
     </FxCompile>
   </ItemGroup>

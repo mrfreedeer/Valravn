@@ -19,6 +19,7 @@
 #include "Engine/Renderer/DebugRendererSystem.hpp"
 #include <dxgidebug.h>
 #include <d3dx12.h> // Notice the X. These are the helper structures not the DX12 header
+#include <regex>
 
 #pragma message("ENGINE_DIR == " ENGINE_DIR)
 
@@ -483,12 +484,12 @@ void Renderer::Flush(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fenc
 	m_fenceValues[m_currentBackBuffer] = newFenceValue;
 }
 
-Texture* Renderer::GetActiveColorTarget() const
+Texture* Renderer::GetActiveRenderTarget() const
 {
 	return m_backBuffers[m_currentBackBuffer];
 }
 
-Texture* Renderer::GetBackUpColorTarget() const
+Texture* Renderer::GetBackUpRenderTarget() const
 {
 	int otherInd = (m_currentBackBuffer + 1) % 2;
 	return m_backBuffers[otherInd];
@@ -499,6 +500,9 @@ void Renderer::Startup()
 #if defined(GAME_2D)
 	is3DDefault = false;
 #endif
+	
+	LoadEngineShaderBinaries();
+
 	m_fenceValues.resize(m_config.m_backBuffersCount);
 	// Enable Debug Layer before initializing any DX12 object
 	EnableDebugLayer();
@@ -540,13 +544,17 @@ void Renderer::Startup()
 
 	CreateDefaultRootSignature();
 
-	std::string default2DMatPath = ENGINE_MAT_DIR;
-	default2DMatPath += "Default2DMaterial.xml";
-	m_default2DMaterial = CreateMaterial(default2DMatPath);
+	LoadEngineMaterials();
+	//std::string default2DMatPath = ENGINE_MAT_DIR;
+	//default2DMatPath += "Default2DMaterial.xml";
+	//m_default2DMaterial = CreateMaterial(default2DMatPath);
 
-	std::string default3DMatPath = ENGINE_MAT_DIR;
-	default3DMatPath += "Default3DMaterial.xml";
-	m_default3DMaterial = CreateMaterial(default3DMatPath);
+	//std::string default3DMatPath = ENGINE_MAT_DIR;
+	//default3DMatPath += "Default3DMaterial.xml";
+	//m_default3DMaterial = CreateMaterial(default3DMatPath);
+
+	m_default3DMaterial = GetMaterialForName("Default3DMaterial");
+	m_default2DMaterial = GetMaterialForName("Default2DMaterial");
 
 	CreateCommandList(m_commandList, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_currentBackBuffer]);
 
@@ -663,6 +671,44 @@ bool Renderer::CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, 
 	return true;
 }
 
+void Renderer::LoadEngineShaderBinaries()
+{
+	std::string binariesPath = ENGINE_MAT_DIR;
+	binariesPath+= R"(Shaders\Binaries)";
+
+	std::regex vertexRegex(".*_v.cso");
+	std::regex pixelRegex(".*_p.cso");
+
+	for(auto const& binEntry: std::filesystem::directory_iterator(binariesPath)){
+		std::filesystem::path binaryPath = binEntry.path();
+		ShaderByteCode* newByteCode = new ShaderByteCode();
+		bool isVertex = std::regex_match(binaryPath.string(), vertexRegex);
+		bool isPixel = std::regex_match(binaryPath.string(), pixelRegex);
+
+		ShaderType shaderType = ShaderType::InvalidShader;
+		if(isVertex)shaderType = ShaderType::Vertex;
+		if(isPixel)shaderType = ShaderType::Pixel;
+
+		newByteCode->m_shaderType = shaderType;
+		newByteCode->m_src = binaryPath.string();
+		FileReadToBuffer(newByteCode->m_byteCode, binaryPath.string().c_str());
+		newByteCode->m_shaderName = binaryPath.filename().replace_extension("").string();
+
+		m_shaderByteCodes.push_back(newByteCode);
+	}
+
+}
+
+void Renderer::LoadEngineMaterials()
+{
+	std::string materialsPath = ENGINE_MAT_DIR;
+	for (auto const& matPath : std::filesystem::directory_iterator(materialsPath)) {
+		if(matPath.is_directory()) continue;
+		
+		CreateMaterial(matPath.path().string());
+	}
+}
+
 Material* Renderer::CreateOrGetMaterial(std::filesystem::path materialPathNoExt)
 {
 	std::string materialXMLPath = materialPathNoExt.replace_extension(".xml").string();
@@ -707,7 +753,8 @@ ShaderByteCode* Renderer::CompileOrGetShaderBytes(ShaderLoadInfo const& shaderLo
 	retByteCode = new ShaderByteCode();
 	retByteCode->m_src = shaderLoadInfo.m_shaderSrc;
 	retByteCode->m_shaderType = shaderLoadInfo.m_shaderType;
-
+	retByteCode->m_shaderName = shaderLoadInfo.m_shaderName;
+	
 	char const* target = Material::GetTargetForShader(shaderLoadInfo.m_shaderType);
 	std::string shaderSource;
 	FileReadToString(shaderSource, shaderLoadInfo.m_shaderSrc);
@@ -721,10 +768,8 @@ ShaderByteCode* Renderer::CompileOrGetShaderBytes(ShaderLoadInfo const& shaderLo
 ShaderByteCode* Renderer::GetByteCodeForShaderSrc(ShaderLoadInfo const& shaderLoadInfo)
 {
 	for (ShaderByteCode*& byteCode : m_shaderByteCodes) {
-		if (AreStringsEqualCaseInsensitive(shaderLoadInfo.m_shaderSrc, byteCode->m_src)) {
-			if (shaderLoadInfo.m_shaderType == byteCode->m_shaderType) {
+		if (AreStringsEqualCaseInsensitive(shaderLoadInfo.m_shaderName, byteCode->m_shaderName)) {
 				return byteCode;
-			}
 		}
 	}
 
@@ -905,6 +950,19 @@ Material* Renderer::GetMaterialForPath(char const* materialPath)
 		}
 	}
 	return nullptr;
+}
+
+Material* Renderer::GetDefaultMaterial() const
+{
+	Material* defaultMat = nullptr;
+	if (is3DDefault) {
+		defaultMat = m_default3DMaterial;
+	}
+	else {
+		defaultMat = m_default2DMaterial;
+	}
+
+	return defaultMat;
 }
 
 void Renderer::SetDebugName(ID3D12Object* object, char const* name)
@@ -1374,6 +1432,103 @@ void Renderer::SetSamplerMode(SamplerMode samplerMode)
 	//}
 }
 
+Texture* Renderer::GetCurrentRenderTarget() const
+{
+	if (!m_currentCamera) GetActiveRenderTarget();
+	Texture* cameraColorTarget = m_currentCamera->GetRenderTarget();
+	return  (cameraColorTarget) ? cameraColorTarget : GetActiveRenderTarget();
+}
+
+Texture* Renderer::GetCurrentDepthTarget() const
+{
+	if (!m_currentCamera) return m_defaultDepthTarget;
+	Texture* cameraDepthTarget = m_currentCamera->GetDepthTarget();
+	return  (cameraDepthTarget) ? cameraDepthTarget : m_defaultDepthTarget;
+}
+
+void Renderer::ApplyEffect(Material* effect, Camera const* camera, Texture* customDepth)
+{
+	Texture* activeTarget = GetActiveRenderTarget();
+	Texture* backTarget = GetBackUpRenderTarget();
+	Texture* usedDepth = (customDepth) ? customDepth : m_defaultDepthTarget;
+	/*if (m_isAntialiasingEnabled) {
+		TextureCreateInfo info;
+		info.m_name = "ApplyEffectTex";
+		info.m_dimensions = activeTarget->GetDimensions();
+		info.m_format = TextureFormat::R8G8B8A8_UNORM;
+		info.m_bindFlags = TextureBindFlagBit::TEXTURE_BIND_RENDER_TARGET_BIT | TextureBindFlagBit::TEXTURE_BIND_SHADER_RESOURCE_BIT;
+		info.m_memoryUsage = MemoryUsage::GPU;
+
+		Texture* singleSampleActive = CreateTexture(info);
+		m_deviceContext->ResolveSubresource(singleSampleActive->m_texture, 0, activeTarget->m_texture, 0, LocalToD3D11ColorFormat(info.m_format));
+
+		if (customDepth) {
+			CopyTextureWithShader(backTarget, singleSampleActive, customDepth, effect, camera);
+		}
+		else {
+			CopyTextureWithShader(backTarget, singleSampleActive, m_depthBuffer, effect, camera);
+		}
+
+
+		DestroyTexture(singleSampleActive);
+	}
+	else {*/
+	CopyTextureWithMaterial(backTarget, activeTarget, usedDepth, effect, camera);
+	//}
+
+
+	m_currentBackBuffer = (m_currentBackBuffer + 1) % 2;
+
+}
+
+void Renderer::SetColorTarget(Texture* dst)
+{
+	if (dst) {
+		ResourceView* renderTargetView = dst->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT);
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = renderTargetView->GetHandle();
+		m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	}
+	else {
+		m_commandList->OMSetRenderTargets(0, NULL, FALSE, NULL);
+	}
+
+}
+
+void Renderer::CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* depthBuffer, Material* effect, Camera const* camera /*= nullptr*/)
+{
+	BindMaterial(effect);
+	SetColorTarget(dst);
+	BindTexture(src, 0);
+	BindTexture(depthBuffer, 1);
+	SetSamplerMode(SamplerMode::BILINEARCLAMP);
+
+	if (camera) {
+		CameraConstants cameraConstants = {};
+		cameraConstants.ProjectionMatrix = camera->GetProjectionMatrix();
+		cameraConstants.ViewMatrix = camera->GetViewMatrix();
+		cameraConstants.InvertedMatrix = cameraConstants.ProjectionMatrix.GetInverted();
+		ConstantBuffer*& cBuffer = GetCurrentCameraBuffer();
+		m_currentCameraCBufferSlot++;
+
+		cBuffer->CopyCPUToGPU(&cameraConstants, sizeof(cameraConstants));
+		BindConstantBuffer(cBuffer, 0);
+	}
+	m_commandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	D3D12_VIEWPORT viewport = {};
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	viewport.Width = static_cast<float>(m_config.m_window->GetClientDimensions().x);
+	viewport.Height = static_cast<float>(m_config.m_window->GetClientDimensions().y);
+	viewport.MinDepth = 0;
+	viewport.MaxDepth = 1;
+	m_commandList->RSSetViewports(1, &viewport);
+
+	m_commandList->DrawInstanced(3, 1, 0, 0);
+	Material* defaultMat = GetDefaultMaterial();
+	m_commandList->ClearState(defaultMat->m_PSO);
+}
+
 void Renderer::SetBlendMode(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc)
 {
 
@@ -1466,14 +1621,7 @@ void Renderer::BindTexture(Texture const* texture, unsigned int slot /*= 0*/)
 
 void Renderer::BindMaterial(Material* mat)
 {
-	if (!mat) {
-		if (is3DDefault) {
-			mat = m_default3DMaterial;
-		}
-		else {
-			mat = m_default2DMaterial;
-		}
-	}
+	if (!mat) mat = GetDefaultMaterial();
 	m_currentDrawCtx.m_material = mat;
 }
 
@@ -1590,7 +1738,7 @@ void Renderer::BeginFrame()
 		m_uploadRequested = false;
 	}
 
-	Texture* currentRt = GetActiveColorTarget();
+	Texture* currentRt = GetActiveRenderTarget();
 	Resource* activeRTResource = currentRt->GetResource();
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
 
@@ -1645,7 +1793,7 @@ void Renderer::EndFrame()
 	defaultRTResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_DEST, m_commandList.Get());
 
 	// This is setting up for IMGUI
-	Resource* currentRtResource = GetActiveColorTarget()->GetResource();
+	Resource* currentRtResource = GetActiveRenderTarget()->GetResource();
 	currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_SOURCE, m_commandList.Get());
 
 
@@ -1773,7 +1921,7 @@ void Renderer::BeginCamera(Camera const& camera)
 
 	BindTexture(m_defaultTexture);
 	SetSamplerMode(SamplerMode::POINTCLAMP);
-	m_currentDrawCtx.m_renderTargets[0] = GetActiveColorTarget();
+	m_currentDrawCtx.m_renderTargets[0] = GetActiveRenderTarget();
 	m_currentDrawCtx.m_depthTarget = m_defaultDepthTarget;
 
 	CameraConstants cameraConstants = {};
@@ -1798,7 +1946,7 @@ void Renderer::BeginCamera(Camera const& camera)
 
 void Renderer::EndCamera(Camera const& camera)
 {
-	if (&camera != m_currentCamera) { 
+	if (&camera != m_currentCamera) {
 		ERROR_RECOVERABLE("USING A DIFFERENT CAMERA TO END CAMERA PASS");
 	}
 
@@ -1815,7 +1963,7 @@ void Renderer::EndCamera(Camera const& camera)
 void Renderer::ClearScreen(Rgba8 const& color)
 {
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
-	Texture* currentBackBuffer = GetActiveColorTarget();
+	Texture* currentBackBuffer = GetActiveRenderTarget();
 
 	float colorAsArray[4];
 	color.GetAsFloats(colorAsArray);

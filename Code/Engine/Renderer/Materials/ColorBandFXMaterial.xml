@@ -1,0 +1,14 @@
+<Material name="ColorBandFX">
+    <VertexShader  EngineShader="true" headerSrc="Shaders/" shaderName="ColorBandEffect_v" src="Shaders/Stages/ColorBandEffect_v.hlsl" entryPoint="VertexMain"/>
+	<PixelShader   EngineShader="true" headerSrc="Shaders/" shaderName="ColorBandEffect_p" src="Shaders/Stages/ColorBandEffect_p.hlsl" entryPoint="PixelMain"/>
+    <!--<BlendMode value="Alpha"/>
+    --><!-- CCW - CounterClockwise
+    CW - ClockWise --><!--
+    <WindingOrder value="CCW"/> 
+    <CullMode value="None"/>
+    <FillMode value="Solid"/>
+    <Topology value="TriangleList"/>
+    <DepthStencil depthFunction="LESSEQUAL" writeDepth="true"/>
+    <Antialiasing value="8"/>
+    <Metadata src="material.mtl"/>-->
+</Material>

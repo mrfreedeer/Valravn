@@ -20,7 +20,7 @@ public:
 
 
 	void SetColorTarget(Texture* color);
-	Texture* GetColorTarget() const;
+	Texture* GetRenderTarget() const;
 
 	void SetDepthTarget(Texture* depth);
 	Texture* GetDepthTarget() const;

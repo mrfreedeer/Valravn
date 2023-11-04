@@ -7,7 +7,7 @@ void Camera::SetColorTarget(Texture* color)
 	m_colorTarget = color;
 }
 
-Texture* Camera::GetColorTarget() const
+Texture* Camera::GetRenderTarget() const
 {
 	return m_colorTarget;
 }

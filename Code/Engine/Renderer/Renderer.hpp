@@ -148,7 +148,7 @@ public:
 	BitmapFont* CreateOrGetBitmapFont(std::filesystem::path bitmapPath);
 	Material* GetMaterialForName(char const* materialName);
 	Material* GetMaterialForPath(char const* materialPath);
-
+	Material* GetDefaultMaterial() const;
 	// Binds
 	void BindConstantBuffer(ConstantBuffer* cBuffer, unsigned int slot = 0);
 	void BindTexture(Texture const* texture, unsigned int slot = 0);
@@ -161,6 +161,11 @@ public:
 	template<typename T_Object>
 	void SetDebugName(ComPtr<T_Object> object, char const* name);
 	void SetSamplerMode(SamplerMode samplerMode);
+
+	Texture* GetCurrentRenderTarget() const;
+	Texture* GetCurrentDepthTarget() const;
+	void ApplyEffect(Material* effect, Camera const* camera = nullptr, Texture* customDepth = nullptr);
+	void CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* depthBuffer, Material* effect, Camera const* camera = nullptr);
 
 private:
 
@@ -186,13 +191,15 @@ private:
 	void WaitForFenceValue(ComPtr<ID3D12Fence1>& fence, unsigned int fenceValue, HANDLE fenceEvent);
 	void Flush(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fence1> fence, unsigned int* fenceValues, HANDLE fenceEvent);
 
-	Texture* GetActiveColorTarget() const;
-	Texture* GetBackUpColorTarget() const;
+	Texture* GetActiveRenderTarget() const;
+	Texture* GetBackUpRenderTarget() const;
 
 
 	// Shaders & Resources
 	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std::vector<D3D12_SIGNATURE_PARAMETER_DESC>& elementsDescs);
 	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* source, ShaderLoadInfo const& loadInfo);
+	void LoadEngineShaderBinaries();
+	void LoadEngineMaterials();
 
 	Material* CreateMaterial(std::string const& materialXMLFile);
 	void CreatePSOForMaterial(Material* material);
@@ -219,6 +226,7 @@ private:
 	ConstantBuffer*& GetNextModelBuffer();
 	ConstantBuffer*& GetCurrentCameraBuffer();
 	ConstantBuffer*& GetCurrentModelBuffer();
+	void SetColorTarget(Texture* dst);
 
 	void DrawAllImmediateContexts();
 	void ClearAllImmediateContexts();

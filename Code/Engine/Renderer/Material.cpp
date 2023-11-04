@@ -65,6 +65,7 @@ void Material::ParseShader(std::string const& attributeName, XMLElement const& x
 
 	std::string shaderSrc = (isEngineMat)? ENGINE_MAT_DIR : "";
 	shaderSrc += ParseXmlAttribute(xmlElement, "src", "Unknown Shader Src");
+	loadInfo.m_shaderName = ParseXmlAttribute(xmlElement, "shaderName", shaderSrc);
 
 	loadInfo.m_shaderSrc = shaderSrc;
 	loadInfo.m_shaderType = shaderType;
