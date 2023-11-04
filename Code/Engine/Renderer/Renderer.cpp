@@ -1376,26 +1376,26 @@ void Renderer::SetSamplerMode(SamplerMode samplerMode)
 
 void Renderer::SetBlendMode(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc)
 {
-	D3D12_BLEND_DESC blendModeDesc = {};
-	blendModeDesc.RenderTarget[0].BlendEnable = true;
-	blendModeDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-	blendModeDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	blendModeDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-	blendModeDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
-	blendModeDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+
+	blendDesc.RenderTarget[0].BlendEnable = true;
+	blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
+	blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
 
 	switch (blendMode) {
 	case BlendMode::ALPHA:
-		blendModeDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-		blendModeDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+		blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+		blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
 		break;
 	case BlendMode::ADDITIVE:
-		blendModeDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-		blendModeDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+		blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+		blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
 		break;
 	case BlendMode::OPAQUE:
-		blendModeDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-		blendModeDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
+		blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+		blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
 		break;
 	default:
 		ERROR_AND_DIE(Stringf("Unknown / unsupported blend mode #%i", blendMode));
