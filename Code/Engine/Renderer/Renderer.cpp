@@ -1667,7 +1667,11 @@ void Renderer::EndFrame()
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
 	ExecuteCommandLists(ppCommandLists, 1);
 
+#if defined(ENGINE_DISABLE_VSYNC)
+	m_swapChain->Present(0, 0);
+#else
 	m_swapChain->Present(1, 0);
+#endif
 
 	Flush(m_commandQueue, m_fence, m_fenceValues.data(), m_fenceEvent);
 	// Flush Command Queue getting ready for next Frame
@@ -1794,8 +1798,14 @@ void Renderer::BeginCamera(Camera const& camera)
 
 void Renderer::EndCamera(Camera const& camera)
 {
-	if (&camera != m_currentCamera) {
+	if (&camera != m_currentCamera) { 
 		ERROR_RECOVERABLE("USING A DIFFERENT CAMERA TO END CAMERA PASS");
+	}
+
+	if (m_hasUsedModelSlot) {
+		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
+		m_currentModelCBufferSlot++;
 	}
 
 	m_currentCamera = nullptr;
