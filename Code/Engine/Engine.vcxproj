@@ -650,7 +650,6 @@
     <None Include="Renderer\Materials\Shaders\SSAO.hlsli" />
   </ItemGroup>
   <ItemGroup>
-    <Xml Include="Renderer\DefaultMaterial.xml" />
     <Xml Include="Renderer\Materials\DebugAlwaysMaterial.xml" />
     <Xml Include="Renderer\Materials\DebugDepthMaterial.xml" />
     <Xml Include="Renderer\Materials\DebugXRayMaterial.xml" />

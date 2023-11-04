@@ -22,6 +22,9 @@
 
 #pragma message("ENGINE_DIR == " ENGINE_DIR)
 
+bool is3DDefault = true;
+
+
 
 DXGI_FORMAT GetFormatForComponent(D3D_REGISTER_COMPONENT_TYPE componentType, char const* semanticnName, BYTE mask) {
 	// determine DXGI format
@@ -493,6 +496,9 @@ Texture* Renderer::GetBackUpColorTarget() const
 
 void Renderer::Startup()
 {
+#if defined(GAME_2D)
+	is3DDefault = false;
+#endif
 	m_fenceValues.resize(m_config.m_backBuffersCount);
 	// Enable Debug Layer before initializing any DX12 object
 	EnableDebugLayer();
@@ -506,6 +512,7 @@ void Renderer::Startup()
 
 	m_defaultGPUDescriptorHeaps.resize(2);
 
+	// These are limited by the root signature
 	m_defaultGPUDescriptorHeaps[(size_t)DescriptorHeapType::SRV_UAV_CBV] = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, 2048, true);
 	m_defaultGPUDescriptorHeaps[(size_t)DescriptorHeapType::SAMPLER] = new DescriptorHeap(this, DescriptorHeapType::SAMPLER, 64, true);
 
@@ -514,7 +521,7 @@ void Renderer::Startup()
 	/// <summary>
 	/// Recommendation here is to have a large pool of descriptors and use them ring buffer style
 	/// </summary>
-	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::SRV_UAV_CBV] = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, 2048);
+	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::SRV_UAV_CBV] = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, 4096);
 	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::SAMPLER] = new DescriptorHeap(this, DescriptorHeapType::SAMPLER, 64);
 	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::RTV] = new DescriptorHeap(this, DescriptorHeapType::RTV, 1024);
 	m_defaultDescriptorHeaps[(size_t)DescriptorHeapType::DSV] = new DescriptorHeap(this, DescriptorHeapType::DSV, 8);
@@ -560,6 +567,41 @@ void Renderer::Startup()
 	Image whiteTexelImg(IntVec2(1, 1), Rgba8::WHITE);
 	whiteTexelImg.m_imageFilePath = "DefaultTexture";
 	m_defaultTexture = CreateTextureFromImage(whiteTexelImg);
+
+	// Assuming worst case scenario, which would be all constant buffers are full and are only engine ones
+	m_cameraCBOArray.resize(CBV_DESCRIPTORS_AMOUNT / 2);
+	m_modelCBOArray.resize(CBV_DESCRIPTORS_AMOUNT / 2);
+
+	BufferDesc cameraBufferDesc = {};
+	cameraBufferDesc.data = nullptr;
+	cameraBufferDesc.descriptorHeap = nullptr;
+	cameraBufferDesc.memoryUsage = MemoryUsage::Dynamic;
+	cameraBufferDesc.owner = this;
+	cameraBufferDesc.size = sizeof(CameraConstants);
+	cameraBufferDesc.stride = sizeof(CameraConstants);
+
+	BufferDesc modelBufferDesc = cameraBufferDesc;
+	modelBufferDesc.size = sizeof(ModelConstants);
+	modelBufferDesc.stride = sizeof(ModelConstants);
+
+	BufferDesc vertexBuffDesc = {};
+	vertexBuffDesc.data = nullptr;
+	vertexBuffDesc.descriptorHeap = nullptr;
+	vertexBuffDesc.memoryUsage = MemoryUsage::Dynamic;
+	vertexBuffDesc.owner = this;
+	vertexBuffDesc.size = sizeof(Vertex_PCU);
+	vertexBuffDesc.stride = sizeof(Vertex_PCU);
+
+	m_immediateVBO = new VertexBuffer(vertexBuffDesc);
+
+	// Allocating the memory so they're ready to use
+	for (int bufferInd = 0; bufferInd < m_cameraCBOArray.size(); bufferInd++) {
+		ConstantBuffer*& cameraBuffer = m_cameraCBOArray[bufferInd];
+		ConstantBuffer*& modelBuffer = m_modelCBOArray[bufferInd];
+
+		cameraBuffer = new ConstantBuffer(cameraBufferDesc);
+		modelBuffer = new ConstantBuffer(modelBufferDesc);
+	}
 
 	DebugRenderConfig debugSystemConfig;
 	debugSystemConfig.m_renderer = this;
@@ -875,7 +917,7 @@ void Renderer::SetDebugName(ID3D12Object* object, char const* name)
 #endif
 }
 
-void Renderer::DrawImmediateCtx(ImmediateContext& ctx, DescriptorHeap* descriptorHeap)
+void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 {
 	Texture* currentRt = ctx.m_renderTargets[0];
 	Resource* currentRtResc = currentRt->GetResource();
@@ -890,24 +932,8 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx, DescriptorHeap* descripto
 		CopyTextureToHeap(texture, ctx.m_srvHandleStart, slot);
 	}
 
-	BufferDesc bufferDesc = {};
-	bufferDesc.data = &ctx.m_modelConstants;
-	bufferDesc.descriptorHeap = descriptorHeap;
-	bufferDesc.memoryUsage = MemoryUsage::Dynamic;
-	bufferDesc.owner = this;
-	bufferDesc.size = sizeof(ModelConstants);
-	bufferDesc.stride = sizeof(ModelConstants);
-
-	ctx.m_modelCBO = new ConstantBuffer(bufferDesc);
-
-	bufferDesc.data = &ctx.m_cameraConstants;
-	bufferDesc.size = sizeof(CameraConstants);
-	bufferDesc.stride = sizeof(CameraConstants);
-
-	ctx.m_cameraCBO = new ConstantBuffer(bufferDesc);
-
-	CopyCBufferToHeap(ctx.m_cameraCBO, ctx.m_cbvHandleStart, 0);
-	CopyCBufferToHeap(ctx.m_modelCBO, ctx.m_cbvHandleStart, 1);
+	CopyCBufferToHeap(*ctx.m_cameraCBO, ctx.m_cbvHandleStart, 0);
+	CopyCBufferToHeap(*ctx.m_modelCBO, ctx.m_cbvHandleStart, 1);
 
 	for (auto& [slot, cbuffer] : ctx.m_boundCBuffers) {
 		CopyCBufferToHeap(cbuffer, ctx.m_cbvHandleStart, slot);
@@ -950,15 +976,14 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx, DescriptorHeap* descripto
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	D3D12_VERTEX_BUFFER_VIEW D3DbufferView = {};
-	BufferView vBufferView = ctx.m_immediateBuffer->GetBufferView();
+	BufferView vBufferView = m_immediateVBO->GetBufferView();
 	// Initialize the vertex buffer view.
 	D3DbufferView.BufferLocation = vBufferView.m_bufferLocation;
 	D3DbufferView.StrideInBytes = (UINT)vBufferView.m_strideInBytes;
 	D3DbufferView.SizeInBytes = (UINT)vBufferView.m_sizeInBytes;
 
 	m_commandList->IASetVertexBuffers(0, 1, &D3DbufferView);
-	UINT vertexCount = UINT(vBufferView.m_sizeInBytes / vBufferView.m_strideInBytes);
-	m_commandList->DrawInstanced(vertexCount, 1, 0, 0);
+	m_commandList->DrawInstanced(ctx.m_vertexCount, 1, ctx.m_vertexStart, 0);
 
 }
 
@@ -1006,7 +1031,7 @@ void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* verte
 
 	const UINT vertexBufferSize = numVertexes * sizeof(Vertex_PCU);
 
-	BufferDesc bufferDesc = {};
+	/*BufferDesc bufferDesc = {};
 	bufferDesc.data = vertexes;
 	bufferDesc.descriptorHeap = nullptr;
 	bufferDesc.memoryUsage = MemoryUsage::Dynamic;
@@ -1015,19 +1040,36 @@ void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* verte
 	bufferDesc.stride = sizeof(Vertex_PCU);
 
 	VertexBuffer* vBuffer = new VertexBuffer(bufferDesc);
-	m_currentDrawCtx.m_immediateBuffer = vBuffer;
-	m_immediateCtxs.push_back(m_currentDrawCtx);
+	m_currentDrawCtx.m_immediateBuffer = vBuffer;*/
 
+	m_currentDrawCtx.m_vertexCount = numVertexes;
+	m_currentDrawCtx.m_vertexStart = m_immediateVertexes.size();
+	std::copy(vertexes, vertexes + numVertexes, std::back_inserter(m_immediateVertexes));
+
+	if (!m_hasUsedModelSlot) {
+		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
+	}
+	m_immediateCtxs.push_back(m_currentDrawCtx);
+	m_hasUsedModelSlot = true;
 }
 
 void Renderer::SetModelMatrix(Mat44 const& modelMat)
 {
+	if (m_hasUsedModelSlot) {
+		m_currentDrawCtx.m_modelCBO = &GetNextModelBuffer();
+	}
 	m_currentDrawCtx.m_modelConstants.ModelMatrix = modelMat;
+	m_hasUsedModelSlot = false;
 }
 
 void Renderer::SetModelColor(Rgba8 const& modelColor)
 {
+	if (m_hasUsedModelSlot) {
+		m_currentDrawCtx.m_modelCBO = &GetNextModelBuffer();
+	}
 	modelColor.GetAsFloats(m_currentDrawCtx.m_modelConstants.ModelColor);
+	m_hasUsedModelSlot = false;
 }
 
 void Renderer::ExecuteCommandLists(ID3D12CommandList** commandLists, unsigned int count)
@@ -1424,7 +1466,14 @@ void Renderer::BindTexture(Texture const* texture, unsigned int slot /*= 0*/)
 
 void Renderer::BindMaterial(Material* mat)
 {
-	if(!mat) mat = m_default3DMaterial;	
+	if (!mat) {
+		if (is3DDefault) {
+			mat = m_default3DMaterial;
+		}
+		else {
+			mat = m_default2DMaterial;
+		}
+	}
 	m_currentDrawCtx.m_material = mat;
 }
 
@@ -1462,30 +1511,49 @@ void Renderer::CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int hand
 
 }
 
-void Renderer::DrawAllImmediateContexts(DescriptorHeap* descriptorHeap)
+ConstantBuffer*& Renderer::GetNextCameraBuffer()
 {
+	m_currentCameraCBufferSlot++;
+	if (m_currentCameraCBufferSlot > m_cameraCBOArray.size()) ERROR_AND_DIE("RAN OUT OF CONSTANT BUFFER SLOTS");
+	ConstantBuffer*& bufferToReturn = m_cameraCBOArray[m_currentCameraCBufferSlot];
+	return bufferToReturn;
+}
+
+ConstantBuffer*& Renderer::GetNextModelBuffer()
+{
+	m_currentModelCBufferSlot++;
+	if (m_currentModelCBufferSlot > m_modelCBOArray.size()) ERROR_AND_DIE("RAN OUT OF CONSTANT BUFFER SLOTS");
+	ConstantBuffer*& bufferToReturn = m_modelCBOArray[m_currentModelCBufferSlot];
+	return bufferToReturn;
+}
+
+ConstantBuffer*& Renderer::GetCurrentCameraBuffer()
+{
+	return m_cameraCBOArray[m_currentCameraCBufferSlot];
+}
+
+ConstantBuffer*& Renderer::GetCurrentModelBuffer()
+{
+	return m_modelCBOArray[m_currentModelCBufferSlot];
+}
+
+void Renderer::DrawAllImmediateContexts()
+{
+	size_t vertexesSize = sizeof(Vertex_PCU) * m_immediateVertexes.size();
+	m_immediateVBO->GuaranteeBufferSize(vertexesSize);
+	m_immediateVBO->CopyCPUToGPU(m_immediateVertexes.data(), vertexesSize);
 	for (ImmediateContext& ctx : m_immediateCtxs) {
-		DrawImmediateCtx(ctx, descriptorHeap);
+		DrawImmediateCtx(ctx);
 	}
 }
 
 void Renderer::ClearAllImmediateContexts()
 {
 	for (ImmediateContext& ctx : m_immediateCtxs) {
-		if (ctx.m_immediateBuffer) {
-			if (ctx.m_cameraCBO) {
-				delete ctx.m_cameraCBO;
-				ctx.m_cameraCBO = nullptr;
-			}
-
-			if (ctx.m_modelCBO) {
-				delete ctx.m_modelCBO;
-				ctx.m_modelCBO = nullptr;
-			}
-
+		/*if (ctx.m_immediateBuffer) {
 			delete ctx.m_immediateBuffer;
 			ctx.m_immediateBuffer = nullptr;
-		}
+		}*/
 	}
 
 	m_immediateCtxs.clear();
@@ -1500,6 +1568,9 @@ void Renderer::SetMaterialPSO(Material* mat)
 void Renderer::BeginFrame()
 {
 	DebugRenderBeginFrame();
+
+	m_currentModelCBufferSlot = 0;
+	m_currentCameraCBufferSlot = 0;
 
 	m_currentDrawCtx = ImmediateContext();
 	m_srvHandleStart = SRV_HANDLE_START;
@@ -1553,7 +1624,7 @@ void Renderer::BeginFrame()
 	//float clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	//m_defaultRenderTarget->GetClearColour().GetAsFloats(clearColor);
 	//m_commandList->ClearRenderTargetView(currentRTVHandle, clearColor, 0, nullptr);
-
+	m_immediateVertexes.clear();
 
 
 #if defined(ENGINE_USE_IMGUI)
@@ -1567,9 +1638,8 @@ void Renderer::EndFrame()
 {
 	DebugRenderEndFrame();
 
-	DescriptorHeap* engineCBufferHeap = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, m_immediateCtxs.size() * 2);
 
-	DrawAllImmediateContexts(engineCBufferHeap);
+	DrawAllImmediateContexts();
 
 	Resource* defaultRTResource = m_defaultRenderTarget->GetResource();
 	defaultRTResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_DEST, m_commandList.Get());
@@ -1604,8 +1674,6 @@ void Renderer::EndFrame()
 	WaitForGPU();
 
 	ClearAllImmediateContexts();
-	delete engineCBufferHeap;
-	engineCBufferHeap = nullptr;
 
 	m_currentFrame++;
 
@@ -1656,11 +1724,25 @@ void Renderer::Shutdown()
 		descriptorHeap = nullptr;
 	}
 
-	delete m_cameraCBO;
-	m_cameraCBO = nullptr;
 
-	delete m_modelCBO;
-	m_modelCBO = nullptr;
+	for (int constantBufferInd = 0; constantBufferInd < m_cameraCBOArray.size(); constantBufferInd++) {
+		ConstantBuffer*& cameraBuffer = m_cameraCBOArray[constantBufferInd];
+		ConstantBuffer*& modelBuffer = m_modelCBOArray[constantBufferInd];
+
+		if (cameraBuffer) {
+			delete cameraBuffer;
+			cameraBuffer = nullptr;
+		}
+
+		if (modelBuffer) {
+			delete modelBuffer;
+			modelBuffer = nullptr;
+		}
+
+	}
+
+	delete m_immediateVBO;
+	m_immediateVBO = nullptr;
 
 	m_commandList.Reset();
 	m_ResourcesCommandList.Reset();
@@ -1695,9 +1777,17 @@ void Renderer::BeginCamera(Camera const& camera)
 	cameraConstants.ViewMatrix = camera.GetViewMatrix();
 	cameraConstants.InvertedMatrix = cameraConstants.ProjectionMatrix.GetInverted();
 
-	m_currentDrawCtx.m_cameraConstants = cameraConstants;
-	m_currentDrawCtx.m_modelConstants = ModelConstants();
+	ConstantBuffer*& nextCameraBuffer = GetCurrentCameraBuffer();
+	nextCameraBuffer->CopyCPUToGPU(&cameraConstants, sizeof(CameraConstants));
+	m_currentCameraCBufferSlot++;
 
+	ConstantBuffer*& nextModelBuffer = GetCurrentModelBuffer();
+	m_currentModelCBufferSlot++;
+
+	m_currentDrawCtx.m_cameraCBO = &nextCameraBuffer;
+	m_currentDrawCtx.m_modelConstants = ModelConstants();
+	m_currentDrawCtx.m_modelCBO = &nextModelBuffer;
+	m_hasUsedModelSlot = false;
 	//BindConstantBuffer(m_cameraCBO, 2);
 	//BindConstantBuffer(m_modelCBO, 3);
 }

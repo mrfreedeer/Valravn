@@ -5,7 +5,6 @@
 VertexBuffer::VertexBuffer(BufferDesc const& bufferDesc):
 	Buffer(bufferDesc)
 {
-
 }
 
 VertexBuffer::~VertexBuffer()

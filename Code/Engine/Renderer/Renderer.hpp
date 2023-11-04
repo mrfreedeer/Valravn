@@ -61,13 +61,14 @@ struct CameraConstants {
 
 
 struct ImmediateContext {
-	CameraConstants m_cameraConstants = {};
 	ModelConstants m_modelConstants = {};
-	ConstantBuffer* m_cameraCBO = nullptr;
-	ConstantBuffer* m_modelCBO = nullptr;
+	ConstantBuffer** m_cameraCBO = nullptr;
+	ConstantBuffer** m_modelCBO = nullptr;
 	std::map<unsigned int, Texture const*> m_boundTextures;
 	std::map<unsigned int, ConstantBuffer*> m_boundCBuffers;
-	VertexBuffer* m_immediateBuffer = nullptr;
+	unsigned int m_vertexStart = 0;
+	unsigned int m_vertexCount = 0;
+	//VertexBuffer* m_immediateBuffer = nullptr;
 	Material* m_material = nullptr;
 	Texture* m_renderTargets[8] = {};
 	Texture* m_depthTarget = nullptr;
@@ -214,10 +215,14 @@ private:
 	void ResetGPUDescriptorHeaps();
 	void CopyTextureToHeap(Texture const* textureToBind, unsigned int handleStart, unsigned int slot = 0);
 	void CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int handleStart, unsigned int slot = 0);
+	ConstantBuffer*& GetNextCameraBuffer();
+	ConstantBuffer*& GetNextModelBuffer();
+	ConstantBuffer*& GetCurrentCameraBuffer();
+	ConstantBuffer*& GetCurrentModelBuffer();
 
-	void DrawAllImmediateContexts(DescriptorHeap* descriptorHeap);
+	void DrawAllImmediateContexts();
 	void ClearAllImmediateContexts();
-	void DrawImmediateCtx(ImmediateContext& ctx, DescriptorHeap* descriptorHeap);
+	void DrawImmediateCtx(ImmediateContext& ctx);
 	ComPtr<ID3D12GraphicsCommandList2> GetBufferCommandList();
 private:
 	RendererConfig m_config = {};
@@ -264,8 +269,13 @@ private:
 	unsigned int m_currentFrame = 0;
 	unsigned int m_RTVdescriptorSize = 0;
 
-	ConstantBuffer* m_cameraCBO = nullptr;
-	ConstantBuffer* m_modelCBO = nullptr;
+	std::vector<ConstantBuffer*> m_cameraCBOArray;
+	std::vector<ConstantBuffer*> m_modelCBOArray;
+	std::vector<Vertex_PCU> m_immediateVertexes;
+	VertexBuffer* m_immediateVBO = nullptr;
+	unsigned int m_currentCameraCBufferSlot = 0;
+	unsigned int m_currentModelCBufferSlot = 0;
+	bool m_hasUsedModelSlot = false;
 	Camera const* m_currentCamera = nullptr;
 
 	ImmediateContext m_currentDrawCtx = {};

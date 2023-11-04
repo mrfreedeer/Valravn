@@ -5,7 +5,7 @@
     <!-- CCW - CounterClockwise
     CW - ClockWise -->
     <WindingOrder value="CCW"/> 
-    <CullMode value="BackFace"/>
+    <CullMode value="None"/>
     <FillMode value="Solid"/>
     <Topology value="TriangleList"/>
     <DepthStencil depthFunction="LESSEQUAL" writeDepth="true"/>
