@@ -13,8 +13,9 @@ struct VertexToFragment_t
     float2 uv : TEX_COORD;
 };
 
-Texture2D<float4> DiffuseTexture : register(t0);
-Texture2D<float4> DepthBuffer : register(t1);
+Texture2D DiffuseTexture : register(t0);
+Texture2D DepthBuffer : register(t1);
+
 SamplerState SurfaceSampler : register(s0);
 
 //--------------------------------------------------------------------------------------
@@ -54,5 +55,5 @@ float4 PixelMain(VertexToFragment_t input) : SV_Target0 // semeantic of what I'm
 {
     float4 resultingColor = DiffuseTexture.Sample(SurfaceSampler, input.uv);
     
-    return 1.0f.xxxx - resultingColor;
+    return (1.0f.xxxx - resultingColor);
 }

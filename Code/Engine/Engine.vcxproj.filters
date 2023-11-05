@@ -734,6 +734,18 @@
     <Xml Include="Renderer\Materials\ColorBandFXMaterial.xml">
       <Filter>Renderer\Materials</Filter>
     </Xml>
+    <Xml Include="Renderer\Materials\DistanceFogFXMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
+    <Xml Include="Renderer\Materials\GrayScaleFXMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
+    <Xml Include="Renderer\Materials\InvertedColorFXMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
+    <Xml Include="Renderer\Materials\PixelizedFXMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Renderer\Materials\Shaders\Stages\Default_p.hlsl">
@@ -746,6 +758,30 @@
       <Filter>Renderer\Materials\Shaders\Stages</Filter>
     </FxCompile>
     <FxCompile Include="Renderer\Materials\Shaders\Stages\ColorBandEffect_v.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\GrayScaleEffect_p.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\GrayScaleEffect_v.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\DistanceFogEffect_p.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\DistanceFogEffect_v.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\InvertedColorEffect_p.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\InvertedColorEffect_v.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\PixelizedEffect_p.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\PixelizedEffect_v.hlsl">
       <Filter>Renderer\Materials\Shaders\Stages</Filter>
     </FxCompile>
   </ItemGroup>

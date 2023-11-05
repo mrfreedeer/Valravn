@@ -378,26 +378,28 @@ void Renderer::CreateDefaultRootSignature()
 	 * #TODO programatically define more complex root signatures. Perhaps just really on the HLSL definition?
 	 */
 
-	D3D12_DESCRIPTOR_RANGE_FLAGS cbvFlags = D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE | D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE;
 
-	D3D12_DESCRIPTOR_RANGE1 descriptorRanges[3] = {};
-	descriptorRanges[0] = { D3D12_DESCRIPTOR_RANGE_TYPE_CBV, CBV_DESCRIPTORS_AMOUNT, 0,0, cbvFlags, 0 };
-	descriptorRanges[1] = { D3D12_DESCRIPTOR_RANGE_TYPE_SRV, SRV_DESCRIPTORS_AMOUNT, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, 0 };
-	descriptorRanges[2] = { D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 2, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, 0 };
+	D3D12_DESCRIPTOR_RANGE1 descriptorRanges[4] = {};
+	descriptorRanges[0] = { D3D12_DESCRIPTOR_RANGE_TYPE_CBV, CBV_DESCRIPTORS_AMOUNT, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, 0 };
+	descriptorRanges[1] = { D3D12_DESCRIPTOR_RANGE_TYPE_SRV, SRV_DESCRIPTORS_AMOUNT,0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND };
+	descriptorRanges[2] = { D3D12_DESCRIPTOR_RANGE_TYPE_UAV, UAV_DESCRIPTORS_AMOUNT,0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND };
+	descriptorRanges[3] = { D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 2, 0,0, D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND };
 
 
 	// Base parameters, initial at the root table. Could be a descriptor, or a pointer to descriptor 
 	// In this case, one descriptor table per slot in the first 3
 
-	CD3DX12_ROOT_PARAMETER1 rootParameters[3] = {};
+	CD3DX12_ROOT_PARAMETER1 rootParameters[4] = {};
 
 	rootParameters[0].InitAsDescriptorTable(1, &descriptorRanges[0], D3D12_SHADER_VISIBILITY_ALL);
 	rootParameters[1].InitAsDescriptorTable(1, &descriptorRanges[1], D3D12_SHADER_VISIBILITY_ALL);
-	rootParameters[2].InitAsDescriptorTable(1, &descriptorRanges[2], D3D12_SHADER_VISIBILITY_PIXEL);
+	rootParameters[2].InitAsDescriptorTable(1, &descriptorRanges[2], D3D12_SHADER_VISIBILITY_ALL);
+	rootParameters[3].InitAsDescriptorTable(1, &descriptorRanges[3], D3D12_SHADER_VISIBILITY_PIXEL);
 
 	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignature(_countof(descriptorRanges), rootParameters);
 	rootSignature.Desc_1_2.Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	rootSignature.Desc_1_2.Flags |= D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED;
+	rootSignature.Desc_1_2.Flags |= D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
 
 	//rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 	//ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error), "COULD NOT SERIALIZE ROOT SIGNATURE");
@@ -533,7 +535,7 @@ void Renderer::Startup()
 	m_defaultGPUDescriptorHeaps.resize(2);
 
 	// These are limited by the root signature
-	m_defaultGPUDescriptorHeaps[(size_t)DescriptorHeapType::SRV_UAV_CBV] = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, 2048, true);
+	m_defaultGPUDescriptorHeaps[(size_t)DescriptorHeapType::SRV_UAV_CBV] = new DescriptorHeap(this, DescriptorHeapType::SRV_UAV_CBV, SRV_UAV_CBV_DEFAULT_SIZE, true);
 	m_defaultGPUDescriptorHeaps[(size_t)DescriptorHeapType::SAMPLER] = new DescriptorHeap(this, DescriptorHeapType::SAMPLER, 64, true);
 
 	m_defaultDescriptorHeaps.resize((size_t)DescriptorHeapType::NUM_DESCRIPTOR_HEAPS);
@@ -1029,7 +1031,8 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 
 	m_commandList->SetGraphicsRootDescriptorTable(0, srvUAVCBVHeap->GetGPUHandleAtOffset(ctx.m_cbvHandleStart));
 	m_commandList->SetGraphicsRootDescriptorTable(1, srvUAVCBVHeap->GetGPUHandleAtOffset(ctx.m_srvHandleStart));
-	m_commandList->SetGraphicsRootDescriptorTable(2, samplerHeap->GetGPUHandleForHeapStart());
+	m_commandList->SetGraphicsRootDescriptorTable(2, srvUAVCBVHeap->GetGPUHandleAtOffset(UAV_HANDLE_START));
+	m_commandList->SetGraphicsRootDescriptorTable(3, samplerHeap->GetGPUHandleForHeapStart());
 
 	//for (int heapIndex = 0; heapIndex < allDescriptorHeaps.size(); heapIndex++) {
 	//	ID3D12DescriptorHeap* currentDescriptorHeap = allDescriptorHeaps[heapIndex];
@@ -1529,12 +1532,11 @@ void Renderer::CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* dept
 	Resource* dsvResource = depthBuffer->GetResource();
 
 	srcResource->TransitionTo(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_commandList.Get());
-	dsvResource->TransitionTo(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_commandList.Get());
+	dsvResource->TransitionTo(D3D12_RESOURCE_STATE_DEPTH_READ, m_commandList.Get());
 	dstResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 	BindMaterial(effect);
 	SetColorTarget(dst);
-	CopyTextureToHeap(src, m_srvHandleStart, 0);
-	CopyTextureToHeap(depthBuffer, m_srvHandleStart, 1);
+
 	SetSamplerMode(SamplerMode::BILINEARCLAMP);
 
 	ConstantBuffer*& cBuffer = GetCurrentCameraBuffer();
@@ -1545,6 +1547,9 @@ void Renderer::CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* dept
 
 	m_commandList->SetPipelineState(effect->m_PSO);
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+
+	CopyTextureToHeap(src, m_srvHandleStart, 0);
+	CopyTextureToHeap(depthBuffer, m_srvHandleStart, 1);
 
 	DescriptorHeap* srvUAVCBVHeap = GetGPUDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
 	DescriptorHeap* samplerHeap = GetGPUDescriptorHeap(DescriptorHeapType::SAMPLER);
@@ -1560,7 +1565,8 @@ void Renderer::CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* dept
 
 	m_commandList->SetGraphicsRootDescriptorTable(0, srvUAVCBVHeap->GetGPUHandleAtOffset(m_cbvHandleStart));
 	m_commandList->SetGraphicsRootDescriptorTable(1, srvUAVCBVHeap->GetGPUHandleAtOffset(m_srvHandleStart));
-	m_commandList->SetGraphicsRootDescriptorTable(2, samplerHeap->GetGPUHandleForHeapStart());
+	m_commandList->SetGraphicsRootDescriptorTable(2, srvUAVCBVHeap->GetGPUHandleAtOffset(UAV_HANDLE_START));
+	m_commandList->SetGraphicsRootDescriptorTable(3, samplerHeap->GetGPUHandleForHeapStart());
 
 	m_cbvHandleStart += 1;
 	m_srvHandleStart += 2;
@@ -1714,14 +1720,15 @@ void Renderer::CopyTextureToHeap(Texture const* textureToBind, unsigned int hand
 
 	ResourceView* rsv = usedTex->GetOrCreateView(RESOURCE_BIND_SHADER_RESOURCE_BIT);
 	DescriptorHeap* srvHeap = GetGPUDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
-	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = srvHeap->GetHandleAtOffset(handleStart + slot);
+	unsigned int resultingSlot = handleStart + slot;
+	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = srvHeap->GetHandleAtOffset(resultingSlot);
 	D3D12_CPU_DESCRIPTOR_HANDLE textureHandle = rsv->GetHandle();
 
 	usedTex->GetResource()->TransitionTo(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_commandList.Get());
 
-	if (srvHandle.ptr != textureHandle.ptr) {
+	//if (srvHandle.ptr != textureHandle.ptr) {
 		m_device->CopyDescriptorsSimple(1, srvHandle, rsv->GetHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	}
+	//}
 }
 
 void Renderer::CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int handleStart, unsigned int slot /*= 0*/)
