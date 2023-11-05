@@ -38,7 +38,7 @@ ResourceView* Texture::CreateShaderResourceView()
 	* 5 Force a value of 1
 	*/
 	srvDesc->Shader4ComponentMapping = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0, 1, 2, 3);
-	srvDesc->Format = LocalToD3D12(m_creationInfo.m_format);
+	srvDesc->Format = LocalToColourD3D12(m_creationInfo.m_format);
 	srvDesc->ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc->Texture2D.MipLevels = 1;
 

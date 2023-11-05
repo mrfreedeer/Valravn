@@ -76,6 +76,12 @@ struct ImmediateContext {
 	unsigned int m_cbvHandleStart = 0;
 };
 
+struct FxContext {
+	CameraConstants m_cameraConstants = {};
+	Material* m_fx = nullptr;
+	Texture* m_depthTarget = nullptr;
+};
+
 struct Light
 {
 	bool Enabled = false;
@@ -165,7 +171,7 @@ public:
 	Texture* GetCurrentRenderTarget() const;
 	Texture* GetCurrentDepthTarget() const;
 	void ApplyEffect(Material* effect, Camera const* camera = nullptr, Texture* customDepth = nullptr);
-	void CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* depthBuffer, Material* effect, Camera const* camera = nullptr);
+	void CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* depthBuffer, Material* effect, CameraConstants const& cameraConstants = CameraConstants());
 
 private:
 
@@ -194,6 +200,8 @@ private:
 	Texture* GetActiveRenderTarget() const;
 	Texture* GetBackUpRenderTarget() const;
 
+	Texture* GetActiveBackBuffer() const;
+	Texture* GetBackUpBackBuffer() const;
 
 	// Shaders & Resources
 	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std::vector<D3D12_SIGNATURE_PARAMETER_DESC>& elementsDescs);
@@ -218,7 +226,7 @@ private:
 	void SetBlendMode(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc);
 	BitmapFont* CreateBitmapFont(std::filesystem::path bitmapPath);
 	
-
+	void ClearTexture(Rgba8 const& color, Texture* tex);
 	void ResetGPUDescriptorHeaps();
 	void CopyTextureToHeap(Texture const* textureToBind, unsigned int handleStart, unsigned int slot = 0);
 	void CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int handleStart, unsigned int slot = 0);
@@ -228,6 +236,8 @@ private:
 	ConstantBuffer*& GetCurrentModelBuffer();
 	void SetColorTarget(Texture* dst);
 
+	void DrawAllEffects();
+	void DrawEffect(FxContext& ctx);
 	void DrawAllImmediateContexts();
 	void ClearAllImmediateContexts();
 	void DrawImmediateCtx(ImmediateContext& ctx);
@@ -242,7 +252,7 @@ private:
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<IDXGISwapChain4> m_swapChain;
 	std::vector<Texture*> m_backBuffers;
-	Texture* m_defaultRenderTarget = nullptr;
+	std::vector<Texture*> m_defaultRenderTargets;
 	Texture* m_defaultDepthTarget = nullptr;
 	Texture* m_defaultTexture = nullptr;
 	ComPtr<ID3D12GraphicsCommandList2> m_commandList;
@@ -262,6 +272,7 @@ private:
 	std::vector<ShaderByteCode*> m_shaderByteCodes;
 	std::vector<Material*> m_loadedMaterials;
 	std::vector<ImmediateContext> m_immediateCtxs;
+	std::vector<FxContext> m_effectsCtxs;
 	std::vector<Texture*> m_loadedTextures;
 	std::vector<BitmapFont*> m_loadedFonts;
 	Material* m_default2DMaterial = nullptr;
@@ -272,6 +283,7 @@ private:
 	HANDLE m_fenceEvent;
 	bool m_useWARP = false;
 	bool m_uploadRequested = false;
+	unsigned int m_currentRenderTarget = 0;
 	unsigned int m_currentBackBuffer = 0;
 	unsigned int m_antiAliasingLevel = 0;
 	unsigned int m_currentFrame = 0;

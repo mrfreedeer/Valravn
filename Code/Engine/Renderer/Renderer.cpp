@@ -320,7 +320,7 @@ void Renderer::CreateRenderTargetViewsForBackBuffers()
 		backBufferTexInfo.m_bindFlags = ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT;
 		backBufferTexInfo.m_dimensions = IntVec2((int)bufferTexDesc.Width, (int)bufferTexDesc.Height);
 		backBufferTexInfo.m_format = TextureFormat::R8G8B8A8_UNORM;
-		backBufferTexInfo.m_name = "DefaultRenderTarget";
+		backBufferTexInfo.m_name = Stringf("BackBuffer %d", frameBufferInd);
 		backBufferTexInfo.m_owner = this;
 		backBufferTexInfo.m_handle = new Resource();
 		backBufferTexInfo.m_handle->m_resource = bufferTex;
@@ -370,7 +370,6 @@ void Renderer::CreateFenceEvent()
 
 void Renderer::CreateDefaultRootSignature()
 {
-	//CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 
 	/**
 	 * Usual layout is 3 Constant Buffers
@@ -409,19 +408,6 @@ void Renderer::CreateDefaultRootSignature()
 	ThrowIfFailed(rootSignatureSerialization, "COULD NOT SERIALIZE ROOT SIGNATURE");
 	ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)), "COULD NOT CREATE ROOT SIGNATURE");
 	SetDebugName(m_rootSignature, "DEFAULTROOTSIGNATURE");
-
-
-	//CreateDescriptorHeap(m_defaultDescriptorHeaps[1], D3D12_DESCRIPTOR_HEAP_TYPE::D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1, true);
-
-	//auto descriptorsize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	// Get a helper handle to the descriptor and create the RTVs 
-	/*CD3DX12_CPU_DESCRIPTOR_HANDLE descriptorHandle(m_defaultDescriptorHeaps[0]->GetCPUDescriptorHandleForHeapStart());
-	D3D12_SHADER_RESOURCE_VIEW_DESC bsDesc = {};
-	bsDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	bsDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	bsDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	m_device->CreateShaderResourceView(nullptr, &bsDesc, descriptorHandle);
-	descriptorHandle.Offset(descriptorsize);*/
 }
 
 void Renderer::CreateDefaultTextureTargets()
@@ -431,10 +417,14 @@ void Renderer::CreateDefaultTextureTargets()
 	defaultRTInfo.m_bindFlags = ResourceBindFlagBit::RESOURCE_BIND_RENDER_TARGET_BIT | ResourceBindFlagBit::RESOURCE_BIND_SHADER_RESOURCE_BIT;
 	defaultRTInfo.m_dimensions = texDimensions;
 	defaultRTInfo.m_format = TextureFormat::R8G8B8A8_UNORM;
-	defaultRTInfo.m_name = "DefaultRenderTarget";
 	defaultRTInfo.m_owner = this;
+	defaultRTInfo.m_clearColour = Rgba8(0, 0, 0, 255);
 
-	m_defaultRenderTarget = CreateTexture(defaultRTInfo);
+	for (unsigned int rtTargetInd = 0; rtTargetInd < m_config.m_backBuffersCount; rtTargetInd++) {
+		defaultRTInfo.m_name = Stringf("DefaultRenderTarget %d", rtTargetInd);
+		defaultRTInfo.m_handle = nullptr;
+		m_defaultRenderTargets.push_back(CreateTexture(defaultRTInfo));
+	}
 
 	TextureCreateInfo defaultDSTInfo = {};
 	defaultDSTInfo.m_bindFlags = ResourceBindFlagBit::RESOURCE_BIND_DEPTH_STENCIL_BIT | ResourceBindFlagBit::RESOURCE_BIND_SHADER_RESOURCE_BIT;
@@ -486,12 +476,24 @@ void Renderer::Flush(ComPtr<ID3D12CommandQueue>& commandQueue, ComPtr<ID3D12Fenc
 
 Texture* Renderer::GetActiveRenderTarget() const
 {
-	return m_backBuffers[m_currentBackBuffer];
+	return m_defaultRenderTargets[m_currentRenderTarget];
 }
 
 Texture* Renderer::GetBackUpRenderTarget() const
 {
-	int otherInd = (m_currentBackBuffer + 1) % 2;
+	int otherInd = (m_currentRenderTarget + 1) % 2;
+	return m_defaultRenderTargets[otherInd];
+}
+
+Texture* Renderer::GetActiveBackBuffer() const
+{
+	return m_backBuffers[m_currentBackBuffer];
+
+}
+
+Texture* Renderer::GetBackUpBackBuffer() const
+{
+	int otherInd = (m_currentRenderTarget + 1) % 2;
 	return m_backBuffers[otherInd];
 }
 
@@ -500,7 +502,7 @@ void Renderer::Startup()
 #if defined(GAME_2D)
 	is3DDefault = false;
 #endif
-	
+
 	LoadEngineShaderBinaries();
 
 	m_fenceValues.resize(m_config.m_backBuffersCount);
@@ -513,7 +515,21 @@ void Renderer::Startup()
 	adapter.Reset();
 	CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 	CreateSwapChain();
+#if defined(_DEBUG)
+	ComPtr<ID3D12InfoQueue> d3dInfoQueue;
+	if (SUCCEEDED(m_device.As(&d3dInfoQueue)))
+	{
 
+		D3D12_MESSAGE_ID hide[] =
+		{
+			D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+		};
+		D3D12_INFO_QUEUE_FILTER filter = {};
+		filter.DenyList.NumIDs = _countof(hide);
+		filter.DenyList.pIDList = hide;
+		d3dInfoQueue->AddStorageFilterEntries(&filter);
+	}
+#endif
 	m_defaultGPUDescriptorHeaps.resize(2);
 
 	// These are limited by the root signature
@@ -674,20 +690,20 @@ bool Renderer::CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, 
 void Renderer::LoadEngineShaderBinaries()
 {
 	std::string binariesPath = ENGINE_MAT_DIR;
-	binariesPath+= R"(Shaders\Binaries)";
+	binariesPath += R"(Shaders\Binaries)";
 
 	std::regex vertexRegex(".*_v.cso");
 	std::regex pixelRegex(".*_p.cso");
 
-	for(auto const& binEntry: std::filesystem::directory_iterator(binariesPath)){
+	for (auto const& binEntry : std::filesystem::directory_iterator(binariesPath)) {
 		std::filesystem::path binaryPath = binEntry.path();
 		ShaderByteCode* newByteCode = new ShaderByteCode();
 		bool isVertex = std::regex_match(binaryPath.string(), vertexRegex);
 		bool isPixel = std::regex_match(binaryPath.string(), pixelRegex);
 
 		ShaderType shaderType = ShaderType::InvalidShader;
-		if(isVertex)shaderType = ShaderType::Vertex;
-		if(isPixel)shaderType = ShaderType::Pixel;
+		if (isVertex)shaderType = ShaderType::Vertex;
+		if (isPixel)shaderType = ShaderType::Pixel;
 
 		newByteCode->m_shaderType = shaderType;
 		newByteCode->m_src = binaryPath.string();
@@ -703,8 +719,8 @@ void Renderer::LoadEngineMaterials()
 {
 	std::string materialsPath = ENGINE_MAT_DIR;
 	for (auto const& matPath : std::filesystem::directory_iterator(materialsPath)) {
-		if(matPath.is_directory()) continue;
-		
+		if (matPath.is_directory()) continue;
+
 		CreateMaterial(matPath.path().string());
 	}
 }
@@ -754,7 +770,7 @@ ShaderByteCode* Renderer::CompileOrGetShaderBytes(ShaderLoadInfo const& shaderLo
 	retByteCode->m_src = shaderLoadInfo.m_shaderSrc;
 	retByteCode->m_shaderType = shaderLoadInfo.m_shaderType;
 	retByteCode->m_shaderName = shaderLoadInfo.m_shaderName;
-	
+
 	char const* target = Material::GetTargetForShader(shaderLoadInfo.m_shaderType);
 	std::string shaderSource;
 	FileReadToString(shaderSource, shaderLoadInfo.m_shaderSrc);
@@ -769,7 +785,7 @@ ShaderByteCode* Renderer::GetByteCodeForShaderSrc(ShaderLoadInfo const& shaderLo
 {
 	for (ShaderByteCode*& byteCode : m_shaderByteCodes) {
 		if (AreStringsEqualCaseInsensitive(shaderLoadInfo.m_shaderName, byteCode->m_shaderName)) {
-				return byteCode;
+			return byteCode;
 		}
 	}
 
@@ -890,7 +906,7 @@ void Renderer::CreatePSOForMaterial(Material* material)
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE(matConfig.m_topology);
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-	psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	psoDesc.DSVFormat = (matConfig.m_depthEnable) ? DXGI_FORMAT_D24_UNORM_S8_UINT : DXGI_FORMAT_UNKNOWN;
 	psoDesc.SampleDesc.Count = 1;
 
 	HRESULT psoCreation = m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&material->m_PSO));
@@ -1033,14 +1049,7 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, &dsvHandle);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	D3D12_VERTEX_BUFFER_VIEW D3DbufferView = {};
-	BufferView vBufferView = m_immediateVBO->GetBufferView();
-	// Initialize the vertex buffer view.
-	D3DbufferView.BufferLocation = vBufferView.m_bufferLocation;
-	D3DbufferView.StrideInBytes = (UINT)vBufferView.m_strideInBytes;
-	D3DbufferView.SizeInBytes = (UINT)vBufferView.m_sizeInBytes;
 
-	m_commandList->IASetVertexBuffers(0, 1, &D3DbufferView);
 	m_commandList->DrawInstanced(ctx.m_vertexCount, 1, ctx.m_vertexStart, 0);
 
 }
@@ -1448,9 +1457,41 @@ Texture* Renderer::GetCurrentDepthTarget() const
 
 void Renderer::ApplyEffect(Material* effect, Camera const* camera, Texture* customDepth)
 {
+	FxContext newFxCtx = {};
+	newFxCtx.m_cameraConstants.ProjectionMatrix = camera->GetProjectionMatrix();
+	newFxCtx.m_cameraConstants.ViewMatrix = camera->GetViewMatrix();
+	newFxCtx.m_cameraConstants.InvertedMatrix = camera->GetProjectionMatrix().GetInverted();
+
+	newFxCtx.m_fx = effect;
+	newFxCtx.m_depthTarget = (customDepth) ? customDepth : m_defaultDepthTarget;
+
+	m_effectsCtxs.push_back(newFxCtx);
+}
+
+void Renderer::SetColorTarget(Texture* dst)
+{
+	if (dst) {
+		ResourceView* renderTargetView = dst->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT);
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = renderTargetView->GetHandle();
+		m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+	}
+	else {
+		m_commandList->OMSetRenderTargets(0, NULL, FALSE, NULL);
+	}
+
+}
+
+void Renderer::DrawAllEffects()
+{
+	for (FxContext& ctx : m_effectsCtxs) {
+		DrawEffect(ctx);
+	}
+}
+
+void Renderer::DrawEffect(FxContext& ctx)
+{
 	Texture* activeTarget = GetActiveRenderTarget();
 	Texture* backTarget = GetBackUpRenderTarget();
-	Texture* usedDepth = (customDepth) ? customDepth : m_defaultDepthTarget;
 	/*if (m_isAntialiasingEnabled) {
 		TextureCreateInfo info;
 		info.m_name = "ApplyEffectTex";
@@ -1473,47 +1514,60 @@ void Renderer::ApplyEffect(Material* effect, Camera const* camera, Texture* cust
 		DestroyTexture(singleSampleActive);
 	}
 	else {*/
-	CopyTextureWithMaterial(backTarget, activeTarget, usedDepth, effect, camera);
+	CopyTextureWithMaterial(backTarget, activeTarget, ctx.m_depthTarget, ctx.m_fx, ctx.m_cameraConstants);
 	//}
 
 
-	m_currentBackBuffer = (m_currentBackBuffer + 1) % 2;
-
+	m_currentRenderTarget = (m_currentRenderTarget + 1) % 2;
 }
 
-void Renderer::SetColorTarget(Texture* dst)
+void Renderer::CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* depthBuffer, Material* effect, CameraConstants const& cameraConstants /*= nullptr*/)
 {
-	if (dst) {
-		ResourceView* renderTargetView = dst->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT);
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = renderTargetView->GetHandle();
-		m_commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-	}
-	else {
-		m_commandList->OMSetRenderTargets(0, NULL, FALSE, NULL);
-	}
+	ClearTexture(Rgba8(0,0,0,255), dst);
+	Resource* srcResource = src->GetResource();
+	Resource* dstResource = dst->GetResource();
+	Resource* dsvResource = depthBuffer->GetResource();
 
-}
-
-void Renderer::CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* depthBuffer, Material* effect, Camera const* camera /*= nullptr*/)
-{
+	srcResource->TransitionTo(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_commandList.Get());
+	dsvResource->TransitionTo(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_commandList.Get());
+	dstResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 	BindMaterial(effect);
 	SetColorTarget(dst);
-	BindTexture(src, 0);
-	BindTexture(depthBuffer, 1);
+	CopyTextureToHeap(src, m_srvHandleStart, 0);
+	CopyTextureToHeap(depthBuffer, m_srvHandleStart, 1);
 	SetSamplerMode(SamplerMode::BILINEARCLAMP);
 
-	if (camera) {
-		CameraConstants cameraConstants = {};
-		cameraConstants.ProjectionMatrix = camera->GetProjectionMatrix();
-		cameraConstants.ViewMatrix = camera->GetViewMatrix();
-		cameraConstants.InvertedMatrix = cameraConstants.ProjectionMatrix.GetInverted();
-		ConstantBuffer*& cBuffer = GetCurrentCameraBuffer();
-		m_currentCameraCBufferSlot++;
+	ConstantBuffer*& cBuffer = GetCurrentCameraBuffer();
+	m_currentCameraCBufferSlot++;
 
-		cBuffer->CopyCPUToGPU(&cameraConstants, sizeof(cameraConstants));
-		BindConstantBuffer(cBuffer, 0);
-	}
+	cBuffer->CopyCPUToGPU(&cameraConstants, sizeof(cameraConstants));
+	CopyCBufferToHeap(cBuffer, m_cbvHandleStart, 0);
+
+	m_commandList->SetPipelineState(effect->m_PSO);
+	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+
+	DescriptorHeap* srvUAVCBVHeap = GetGPUDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
+	DescriptorHeap* samplerHeap = GetGPUDescriptorHeap(DescriptorHeapType::SAMPLER);
+	ID3D12DescriptorHeap* allDescriptorHeaps[] = {
+		srvUAVCBVHeap->GetHeap(),
+		samplerHeap->GetHeap()
+	};
+
+	UINT numHeaps = sizeof(allDescriptorHeaps) / sizeof(ID3D12DescriptorHeap*);
+	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+	m_commandList->SetDescriptorHeaps(numHeaps, allDescriptorHeaps);
+
+
+	m_commandList->SetGraphicsRootDescriptorTable(0, srvUAVCBVHeap->GetGPUHandleAtOffset(m_cbvHandleStart));
+	m_commandList->SetGraphicsRootDescriptorTable(1, srvUAVCBVHeap->GetGPUHandleAtOffset(m_srvHandleStart));
+	m_commandList->SetGraphicsRootDescriptorTable(2, samplerHeap->GetGPUHandleForHeapStart());
+
+	m_cbvHandleStart += 1;
+	m_srvHandleStart += 2;
+
+
 	m_commandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 
 	D3D12_VIEWPORT viewport = {};
 	viewport.TopLeftX = 0;
@@ -1522,10 +1576,23 @@ void Renderer::CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* dept
 	viewport.Height = static_cast<float>(m_config.m_window->GetClientDimensions().y);
 	viewport.MinDepth = 0;
 	viewport.MaxDepth = 1;
+
+	D3D12_RECT scissorRect = {};
+	scissorRect.left = 0;
+	scissorRect.top = 0;
+	scissorRect.right = static_cast<long>(m_config.m_window->GetClientDimensions().x);
+	scissorRect.bottom = static_cast<long>(m_config.m_window->GetClientDimensions().y);
+
 	m_commandList->RSSetViewports(1, &viewport);
+	m_commandList->RSSetScissorRects(1, &scissorRect);
 
 	m_commandList->DrawInstanced(3, 1, 0, 0);
+	//CD3DX12_RESOURCE_BARRIER resourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(dstResource->m_resource, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON);
+	//m_commandList->ResourceBarrier(1, &resourceBarrier);
+	//dstResource->m_currentState = D3D12_RESOURCE_STATE_COMMON;
+
 	Material* defaultMat = GetDefaultMaterial();
+
 	m_commandList->ClearState(defaultMat->m_PSO);
 }
 
@@ -1567,6 +1634,19 @@ BitmapFont* Renderer::CreateBitmapFont(std::filesystem::path bitmapPath)
 
 	m_loadedFonts.push_back(newBitmapFont);
 	return newBitmapFont;
+}
+
+
+void Renderer::ClearTexture(Rgba8 const& color, Texture* tex)
+{
+	float colorAsArray[4];
+	color.GetAsFloats(colorAsArray);
+
+	Resource* rtResource = tex->GetResource();
+	rtResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
+
+	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = tex->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();;
+	m_commandList->ClearRenderTargetView(currentRTVHandle, colorAsArray, 0, nullptr);
 }
 
 void Renderer::ResetGPUDescriptorHeaps()
@@ -1690,6 +1770,15 @@ void Renderer::DrawAllImmediateContexts()
 	size_t vertexesSize = sizeof(Vertex_PCU) * m_immediateVertexes.size();
 	m_immediateVBO->GuaranteeBufferSize(vertexesSize);
 	m_immediateVBO->CopyCPUToGPU(m_immediateVertexes.data(), vertexesSize);
+
+	D3D12_VERTEX_BUFFER_VIEW D3DbufferView = {};
+	BufferView vBufferView = m_immediateVBO->GetBufferView();
+	// Initialize the vertex buffer view.
+	D3DbufferView.BufferLocation = vBufferView.m_bufferLocation;
+	D3DbufferView.StrideInBytes = (UINT)vBufferView.m_strideInBytes;
+	D3DbufferView.SizeInBytes = (UINT)vBufferView.m_sizeInBytes;
+
+	m_commandList->IASetVertexBuffers(0, 1, &D3DbufferView);
 	for (ImmediateContext& ctx : m_immediateCtxs) {
 		DrawImmediateCtx(ctx);
 	}
@@ -1697,13 +1786,6 @@ void Renderer::DrawAllImmediateContexts()
 
 void Renderer::ClearAllImmediateContexts()
 {
-	for (ImmediateContext& ctx : m_immediateCtxs) {
-		/*if (ctx.m_immediateBuffer) {
-			delete ctx.m_immediateBuffer;
-			ctx.m_immediateBuffer = nullptr;
-		}*/
-	}
-
 	m_immediateCtxs.clear();
 	m_immediateCtxs.resize(0);
 }
@@ -1766,7 +1848,7 @@ void Renderer::BeginFrame()
 	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, nullptr);
 
 	ResetGPUDescriptorHeaps();
-	ClearScreen(m_defaultRenderTarget->GetClearColour());
+	ClearScreen(currentRt->GetClearColour());
 	ClearDepth();
 	// Record commands.
 	//float clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -1786,20 +1868,31 @@ void Renderer::EndFrame()
 {
 	DebugRenderEndFrame();
 
-
 	DrawAllImmediateContexts();
 
-	Resource* defaultRTResource = m_defaultRenderTarget->GetResource();
-	defaultRTResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_DEST, m_commandList.Get());
+	if (m_effectsCtxs.size() > 0) {
+		DrawAllEffects();
+	}
 
-	// This is setting up for IMGUI
-	Resource* currentRtResource = GetActiveRenderTarget()->GetResource();
-	currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_SOURCE, m_commandList.Get());
+	Resource* defaultRTResource = GetActiveRenderTarget()->GetResource();
+	Resource* currentBackBuffer = GetActiveBackBuffer()->GetResource();
+
+	currentBackBuffer->TransitionTo(D3D12_RESOURCE_STATE_COPY_DEST, m_commandList.Get());
+	defaultRTResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_SOURCE, m_commandList.Get());
+	m_commandList->CopyResource(currentBackBuffer->m_resource, defaultRTResource->m_resource);
 
 
-	m_commandList->CopyResource(m_defaultRenderTarget->m_handle->m_resource, currentRtResource->m_resource);
+	currentBackBuffer->TransitionTo(D3D12_RESOURCE_STATE_PRESENT, m_commandList.Get());
+	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
 
-	currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_PRESENT, m_commandList.Get());
+	//// This is setting up for IMGUI
+	//Resource* currentRtResource = GetActiveRenderTarget()->GetResource();
+	//currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_SOURCE, m_commandList.Get());
+
+
+	//m_commandList->CopyResource(m_defaultRenderTarget->m_handle->m_resource, currentRtResource->m_resource);
+
+	//currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_PRESENT, m_commandList.Get());
 	//DebugRenderEndFrame();
 	/*CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
 		GetActiveColorTarget().Get(),
@@ -1810,10 +1903,10 @@ void Renderer::EndFrame()
 
 	// Close command list
 	//ThrowIfFailed(m_ResourcesCommandList->Close(), "COULD NOT CLOSE RESOURCES COMMAND LIST");
-	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
 
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
 	ExecuteCommandLists(ppCommandLists, 1);
+
 
 #if defined(ENGINE_DISABLE_VSYNC)
 	m_swapChain->Present(0, 0);
@@ -1826,6 +1919,8 @@ void Renderer::EndFrame()
 	WaitForGPU();
 
 	ClearAllImmediateContexts();
+	m_effectsCtxs.clear();
+	m_effectsCtxs.resize(0);
 
 	m_currentFrame++;
 
@@ -1958,32 +2053,15 @@ void Renderer::EndCamera(Camera const& camera)
 
 	m_currentCamera = nullptr;
 	m_currentDrawCtx = ImmediateContext();
+	Material* defaultMat = GetDefaultMaterial();
+	m_commandList->ClearState(defaultMat->m_PSO);
 }
 
 void Renderer::ClearScreen(Rgba8 const& color)
 {
 	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
-	Texture* currentBackBuffer = GetActiveRenderTarget();
-
-	float colorAsArray[4];
-	color.GetAsFloats(colorAsArray);
-	//currentBackBuffer->GetClearColour().GetAsFloats(colorAsArray);
-	Resource* rtResource = currentBackBuffer->GetResource();
-	rtResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
-	//CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-	//	GetActiveColorTarget().Get(),
-	//	D3D12_RESOURCE_STATE_PRESENT,
-	//	D3D12_RESOURCE_STATE_RENDER_TARGET
-	//);
-
-	//m_commandList->ResourceBarrier(1, &barrier);
-
-	D3D12_CPU_DESCRIPTOR_HANDLE currentRTVHandle = currentBackBuffer->GetOrCreateView(RESOURCE_BIND_RENDER_TARGET_BIT)->GetHandle();;
-
-	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-	//	m_currentBackBuffer, m_RTVdescriptorSize);
-	m_commandList->ClearRenderTargetView(currentRTVHandle, colorAsArray, 0, nullptr);
-
+	Texture* currentRt = GetActiveRenderTarget();
+	ClearTexture(color, currentRt);
 
 }
 
