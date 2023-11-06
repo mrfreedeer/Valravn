@@ -69,8 +69,8 @@ struct ImmediateContext {
 	ConstantBuffer** m_modelCBO = nullptr;
 	std::map<unsigned int, Texture const*> m_boundTextures;
 	std::map<unsigned int, ConstantBuffer*> m_boundCBuffers;
-	unsigned int m_vertexStart = 0;
-	unsigned int m_vertexCount = 0;
+	size_t m_vertexStart = 0;
+	size_t m_vertexCount = 0;
 	//VertexBuffer* m_immediateBuffer = nullptr;
 	Material* m_material = nullptr;
 	Texture* m_renderTargets[8] = {};
@@ -208,7 +208,7 @@ private:
 
 	// Shaders & Resources
 	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std::vector<D3D12_SIGNATURE_PARAMETER_DESC>& elementsDescs, std::vector<std::string>& semanticNames);
-	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* source, ShaderLoadInfo const& loadInfo);
+	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, ShaderLoadInfo const& loadInfo);
 	void LoadEngineShaderBinaries();
 	void LoadEngineMaterials();
 

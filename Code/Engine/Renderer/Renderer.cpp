@@ -303,9 +303,6 @@ void Renderer::CreateRenderTargetViewsForBackBuffers()
 	m_RTVdescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	// Get a helper handle to the descriptor and create the RTVs 
 
-	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
-
-
 	m_backBuffers.resize(m_config.m_backBuffersCount);
 	for (unsigned int frameBufferInd = 0; frameBufferInd < m_config.m_backBuffersCount; frameBufferInd++) {
 		ID3D12Resource2* bufferTex = nullptr;
@@ -640,11 +637,8 @@ void Renderer::Startup()
 }
 
 
-bool Renderer::CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* source, ShaderLoadInfo const& loadInfo)
+bool Renderer::CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, ShaderLoadInfo const& loadInfo)
 {
-	UINT compilerFlags = 0;
-
-	bool isAntialiasingOn = loadInfo.m_antialiasing;
 
 	char const* sourceName = loadInfo.m_shaderSrc.c_str();
 	char const* entryPoint = loadInfo.m_shaderEntryPoint.c_str();
@@ -722,7 +716,7 @@ bool Renderer::CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, 
 	ComPtr<IDxcResult> pResults;
 	auto stringCompilerArgs = compilerArgs->GetArguments();
 	auto optionsCount = compilerArgs->GetCount();
-	pCompiler->Compile(&bufferSource, stringCompilerArgs, compilerArgs->GetCount(), pIncludeHandler.Get(), IID_PPV_ARGS(&pResults));
+	pCompiler->Compile(&bufferSource, stringCompilerArgs, optionsCount, pIncludeHandler.Get(), IID_PPV_ARGS(&pResults));
 
 
 	ComPtr<IDxcBlobUtf8> pErrors = nullptr;
@@ -845,9 +839,9 @@ ShaderByteCode* Renderer::CompileOrGetShaderBytes(ShaderLoadInfo const& shaderLo
 	retByteCode->m_shaderType = shaderLoadInfo.m_shaderType;
 	retByteCode->m_shaderName = shaderLoadInfo.m_shaderName;
 
-	std::string shaderSource;
-	FileReadToString(shaderSource, shaderLoadInfo.m_shaderSrc);
-	CompileShaderToByteCode(retByteCode->m_byteCode, shaderSource.c_str(), shaderLoadInfo);
+	//std::string shaderSource;
+	//FileReadToString(shaderSource, shaderLoadInfo.m_shaderSrc);
+	CompileShaderToByteCode(retByteCode->m_byteCode, shaderLoadInfo);
 
 	m_shaderByteCodes.push_back(retByteCode);
 	return retByteCode;
@@ -983,7 +977,7 @@ bool Renderer::CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std
 
 	ComPtr<IDxcBlobEncoding> sourceBlob{};
 	ComPtr<IDxcBlob> pShader;
-	HRESULT blobCreation = pUtils->CreateBlob(shaderByteCode.data(), shaderByteCode.size(), DXC_CP_ACP, &sourceBlob);
+	HRESULT blobCreation = pUtils->CreateBlob(shaderByteCode.data(), (UINT32)shaderByteCode.size(), DXC_CP_ACP, &sourceBlob);
 	ThrowIfFailed(blobCreation, "COULD NOT CREATE BLOB FOR SHADER REFLECTION");
 	ComPtr<IDxcResult> results = {};
 
@@ -1105,8 +1099,6 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 		CopyCBufferToHeap(cbuffer, ctx.m_cbvHandleStart, slot);
 	}
 
-	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
-	DescriptorHeap* dsvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::DSV);
 	DescriptorHeap* srvUAVCBVHeap = GetGPUDescriptorHeap(DescriptorHeapType::SRV_UAV_CBV);
 	DescriptorHeap* samplerHeap = GetGPUDescriptorHeap(DescriptorHeapType::SAMPLER);
 	ID3D12DescriptorHeap* allDescriptorHeaps[] = {
@@ -1143,7 +1135,7 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
-	m_commandList->DrawInstanced(ctx.m_vertexCount, 1, ctx.m_vertexStart, 0);
+	m_commandList->DrawInstanced((UINT)ctx.m_vertexCount, 1, (UINT)ctx.m_vertexStart, 0);
 
 }
 
@@ -1202,7 +1194,7 @@ void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* verte
 	VertexBuffer* vBuffer = new VertexBuffer(bufferDesc);
 	m_currentDrawCtx.m_immediateBuffer = vBuffer;*/
 
-	m_currentDrawCtx.m_vertexCount = numVertexes;
+	m_currentDrawCtx.m_vertexCount = (size_t)numVertexes;
 	m_currentDrawCtx.m_vertexStart = m_immediateVertexes.size();
 	std::copy(vertexes, vertexes + numVertexes, std::back_inserter(m_immediateVertexes));
 
@@ -1922,7 +1914,6 @@ void Renderer::BeginFrame()
 
 	Texture* currentRt = GetActiveRenderTarget();
 	Resource* activeRTResource = currentRt->GetResource();
-	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
 
 	// Command list allocators can only be reset when the associated 
   // command lists have finished execution on the GPU; apps should use 
@@ -1985,24 +1976,6 @@ void Renderer::EndFrame()
 	currentBackBuffer->TransitionTo(D3D12_RESOURCE_STATE_PRESENT, m_commandList.Get());
 	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
 	m_isCommandListOpen = false;
-	//// This is setting up for IMGUI
-	//Resource* currentRtResource = GetActiveRenderTarget()->GetResource();
-	//currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_SOURCE, m_commandList.Get());
-
-
-	//m_commandList->CopyResource(m_defaultRenderTarget->m_handle->m_resource, currentRtResource->m_resource);
-
-	//currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_PRESENT, m_commandList.Get());
-	//DebugRenderEndFrame();
-	/*CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		GetActiveColorTarget().Get(),
-		D3D12_RESOURCE_STATE_COPY_DEST,
-		D3D12_RESOURCE_STATE_PRESENT);
-
-	m_commandList->ResourceBarrier(1, &barrier);*/
-
-	// Close command list
-	//ThrowIfFailed(m_ResourcesCommandList->Close(), "COULD NOT CLOSE RESOURCES COMMAND LIST");
 
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
 	ExecuteCommandLists(ppCommandLists, 1);
@@ -2159,10 +2132,8 @@ void Renderer::EndCamera(Camera const& camera)
 
 void Renderer::ClearScreen(Rgba8 const& color)
 {
-	DescriptorHeap* rtvDescriptorHeap = GetDescriptorHeap(DescriptorHeapType::RTV);
 	Texture* currentRt = GetActiveRenderTarget();
 	ClearTexture(color, currentRt);
-
 }
 
 void Renderer::ClearDepth(float clearDepth /*= 0.0f*/)

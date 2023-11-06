@@ -195,9 +195,9 @@ void DevConsole::Render(AABB2 const& bounds, Renderer* rendererOverride) const
 	std::string fullFontPath = "Data/Images/" + m_config.m_font;
 	//#TODO DX12 FIXTHIS
 
-	/*static BitmapFont* usedFont = usedRenderer->CreateOrGetBitmapFont(fullFontPath.c_str());
+	static BitmapFont* usedFont = usedRenderer->CreateOrGetBitmapFont(fullFontPath.c_str());
 
-	Render_OpenFull(bounds, *usedRenderer, *usedFont, m_config.m_fontAspect);*/
+	Render_OpenFull(bounds, *usedRenderer, *usedFont, m_config.m_fontAspect);
 }
 
 DevConsoleMode DevConsole::GetMode() const
@@ -319,7 +319,7 @@ void DevConsole::Render_InputCaret(Renderer& renderer, BitmapFont& font, float f
 	AddVertsForAABB2D(caretVertexes, caretAABB2, caretColor);
 	//#TODO DX12 FIXTHIS
 
-	//renderer.DrawVertexArray(caretVertexes);
+	renderer.DrawVertexArray(caretVertexes);
 }
 
 void DevConsole::Render_UserInput(Renderer& renderer, BitmapFont& font, float fontAspect, float cellHeight) const
@@ -331,7 +331,7 @@ void DevConsole::Render_UserInput(Renderer& renderer, BitmapFont& font, float fo
 	font.AddVertsForTextInBox2D(userInputTextVerts, inputLineAABB2, cellHeight, m_inputText, Rgba8::CYAN, fontAspect, Vec2::ZERO, TextBoxMode::OVERRUN);
 	//#TODO DX12 FIXTHIS
 
-	//renderer.DrawVertexArray(userInputTextVerts);
+	renderer.DrawVertexArray(userInputTextVerts);
 }
 
 Strings DevConsole::ProcessCommandLine(std::string const& commandLine) const

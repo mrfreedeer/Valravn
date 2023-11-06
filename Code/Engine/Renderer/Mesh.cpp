@@ -440,6 +440,14 @@ Mesh::Mesh(MeshBuilder const& meshBuilder, Renderer* renderer)
 
 	//#TODO DX12 FIXTHIS
 
+	BufferDesc newVBufferDesc = {};
+	newVBufferDesc.data = vertexes.data();
+	newVBufferDesc.descriptorHeap = nullptr;
+	newVBufferDesc.memoryUsage = memoryUsage;
+	newVBufferDesc.owner = renderer;
+	newVBufferDesc.size = meshBuilder.m_vertexes.size() * m_stride;
+	newVBufferDesc.stride = m_stride;
+	m_vertexBuffer = new VertexBuffer(newVBufferDesc);
 	//m_vertexBuffer = new VertexBuffer(renderer->m_device, meshBuilder.m_vertexes.size() * m_stride, m_stride, memoryUsage, vertexes.data());
 
 

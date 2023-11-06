@@ -105,8 +105,6 @@ void Buffer::CreateDefaultBuffer(void const* data)
 
 void Buffer::CreateAndCopyToUploadBuffer(ID3D12Resource2*& uploadBuffer, void const* data)
 {
-	ID3D12Resource2*& resource = m_buffer->m_resource;
-
 	ComPtr<ID3D12Device2>& device = m_owner->m_device;
 
 	CD3DX12_HEAP_PROPERTIES heapProperties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);

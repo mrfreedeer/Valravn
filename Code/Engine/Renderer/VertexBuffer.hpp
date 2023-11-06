@@ -5,9 +5,9 @@ class VertexBuffer : public Buffer
 {
 	friend class Renderer;
 public:
+	VertexBuffer(BufferDesc const& bufferDesc);
 	virtual ~VertexBuffer();
 	
 private:
-	VertexBuffer(BufferDesc const& bufferDesc);
 	VertexBuffer(const VertexBuffer& copy) = delete;
 };

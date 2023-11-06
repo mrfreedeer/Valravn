@@ -92,7 +92,7 @@ bool Rgba8::Equals(Rgba8 const& compareTo, bool includeAlpha) const
 {
 	bool areEqual = (compareTo.r == r) && (compareTo.g == g) && (compareTo.b == b);
 	if (includeAlpha) {
-		areEqual == areEqual && compareTo.a == a;
+		(areEqual == areEqual) && (compareTo.a == a);
 	}
 
 	return areEqual;
