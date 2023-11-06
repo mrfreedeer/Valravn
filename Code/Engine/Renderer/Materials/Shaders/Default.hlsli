@@ -28,24 +28,7 @@ cbuffer ModelConstants : register(b1)
 Texture2D diffuseTexture : register(t0);
 SamplerState diffuseSampler : register(s0);
 
-float1 GetFractionWithin(float1 inValue, float1 inStart, float1 inEnd)
-{
-    if (inStart == inEnd)
-        return 0.5f;
-    float1 range = inEnd - inStart;
-    return (inValue - inStart) / range;
-}
 
-float1 Interpolate(float1 outStart, float1 outEnd, float1 fraction)
-{
-    return outStart + fraction * (outEnd - outStart);
-}
-
-float1 RangeMap(float1 inValue, float1 inStart, float1 inEnd, float1 outStart, float1 outEnd)
-{
-    float1 fraction = GetFractionWithin(inValue, inStart, inEnd);
-    return Interpolate(outStart, outEnd, fraction);
-}
 
 float4 PixelMain(v2p_t input) : SV_Target0
 {

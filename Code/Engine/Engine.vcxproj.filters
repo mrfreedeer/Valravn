@@ -56,6 +56,9 @@
     <Filter Include="Renderer\Materials\Shaders\Stages">
       <UniqueIdentifier>{143a3874-4d69-45fc-acdf-8f1aa0209619}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Renderer\Materials\Shaders\Common">
+      <UniqueIdentifier>{1b74a793-4323-4db8-a65f-23bfa004a36e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Math\Vec2.cpp">
@@ -713,6 +716,9 @@
     </None>
     <None Include="Renderer\Materials\Shaders\SSAO.hlsli">
       <Filter>Renderer\Materials\Shaders</Filter>
+    </None>
+    <None Include="Renderer\Materials\Shaders\Common\Math.hlsli">
+      <Filter>Renderer\Materials\Shaders\Common</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

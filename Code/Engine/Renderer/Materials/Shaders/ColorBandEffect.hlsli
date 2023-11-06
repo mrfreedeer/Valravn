@@ -1,3 +1,5 @@
+#include "Common/Math.hlsli"
+
 // input to the vertex shader - for now, a special input that is the index of the vertex we're drawing
 struct vs_input_t
 {
@@ -52,11 +54,14 @@ VertexToFragment_t VertexMain(vs_input_t input)
 
 float4 PixelMain(VertexToFragment_t input) : SV_Target0 // semeantic of what I'm returning
 {
-    static int toneAmount = 2;
+    static int toneAmount = 8;
     static float toneStep = 1.0f / float(toneAmount);
     float4 resultingColor = DiffuseTexture.Sample(SurfaceSampler, input.uv);
     
-    resultingColor = floor(resultingColor * toneAmount) / toneAmount;
+    resultingColor /= toneStep;
+    resultingColor = floor(resultingColor);
+    resultingColor *= toneStep;
+    resultingColor.a = 1.0f;
     
     return resultingColor;
 }

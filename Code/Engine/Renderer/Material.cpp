@@ -14,10 +14,10 @@ Material::~Material()
 	DX_SAFE_RELEASE(m_PSO);
 	m_PSO = nullptr;
 
-	for (D3D12_INPUT_ELEMENT_DESC& elementDesc : m_inputLayout) {
-		// This is because I had to allocate some memory for the semantic names
-		free((void*)elementDesc.SemanticName);
-	}
+	//for (D3D12_INPUT_ELEMENT_DESC& elementDesc : m_inputLayout) {
+	//	// This is because I had to allocate some memory for the semantic names
+	//	free((void*)elementDesc.SemanticName);
+	//}
 }
 
 const std::string& Material::GetName() const
@@ -201,17 +201,17 @@ char const* Material::GetTargetForShader(ShaderType shaderType)
 	switch (shaderType)
 	{
 	case Vertex:
-		return "vs_5_0";
+		return "vs_6_5";
 	case Pixel:
-		return "ps_5_0";
+		return "ps_6_5";
 	case Geometry:
-		return "gs_5_0";
+		return "gs_6_5";
 	case Hull:
-		return "hs_5_0";
+		return "hs_6_5";
 	case Domain:
-		return "ds_5_0";
+		return "ds_6_5";
 	case Compute:
-		return "cs_5_0";
+		return "cs_6_5";
 	default:
 		ERROR_AND_DIE("UNSUPPORTED SHADER TYPE FOR TARGET");
 	}

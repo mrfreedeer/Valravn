@@ -12,13 +12,16 @@
 #include <map>
 #include <d3d12.h>
 #include <dxgi1_6.h>
-#include <d3dcompiler.h>
+#include <dxcapi.h>
+#include <d3d12shader.h>
+//#include <d3dcompiler.h>
 #include <wrl.h>
 
 
+#pragma comment (lib, "Engine/Renderer/D3D12/dxcompiler.lib")
 #pragma comment (lib, "d3d12.lib")
 #pragma comment (lib, "dxgi.lib")
-#pragma comment (lib, "d3dcompiler.lib")
+//#pragma comment (lib, "d3dcompiler.lib")
 #pragma comment (lib, "dxguid.lib")
 
 template <typename T>
@@ -204,7 +207,7 @@ private:
 	Texture* GetBackUpBackBuffer() const;
 
 	// Shaders & Resources
-	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std::vector<D3D12_SIGNATURE_PARAMETER_DESC>& elementsDescs);
+	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std::vector<D3D12_SIGNATURE_PARAMETER_DESC>& elementsDescs, std::vector<std::string>& semanticNames);
 	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, char const* source, ShaderLoadInfo const& loadInfo);
 	void LoadEngineShaderBinaries();
 	void LoadEngineMaterials();
