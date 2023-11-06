@@ -304,6 +304,7 @@ private:
 	ImmediateContext m_currentDrawCtx = {};
 	unsigned int m_srvHandleStart = 0;
 	unsigned int m_cbvHandleStart = 0;
+	bool m_isCommandListOpen =false;
 };
 
 template<typename T_Object>

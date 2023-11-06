@@ -1029,7 +1029,7 @@ bool Renderer::CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std
 										// (combination of D3D_MASK_* values)
 		paramDesc.Stream,			// Stream index
 		paramDesc.MinPrecision			// Minimum desired interpolation precision
-		});
+			});
 	}
 	DX_SAFE_RELEASE(pShaderReflection);
 	return true;
@@ -1347,7 +1347,9 @@ Texture* Renderer::CreateTexture(TextureCreateInfo& creationInfo)
 			handle->TransitionTo(D3D12_RESOURCE_STATE_COMMON, m_commandList.Get());
 
 			m_frameUploadHeaps.push_back(textureUploadHeap);
-			m_uploadRequested = true;
+			if (!m_isCommandListOpen) {
+				m_uploadRequested = true;
+			}
 		}
 
 		std::string const errorMsg = Stringf("COULD NOT CREATE TEXTURE WITH NAME %s", creationInfo.m_name.c_str());
@@ -1905,6 +1907,7 @@ void Renderer::BeginFrame()
 
 	if (m_uploadRequested) {
 		//WaitForGPU();
+		//m_commandList->
 		m_commandList->Close();
 		ID3D12CommandList* commLists[1] = { m_commandList.Get() };
 		ExecuteCommandLists(commLists, 1);
@@ -1930,7 +1933,7 @@ void Renderer::BeginFrame()
 	// list, that command list can then be reset at any time and must be before 
 	// re-recording.
 	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_currentBackBuffer].Get(), m_default2DMaterial->m_PSO), "COULD NOT RESET COMMAND LIST");
-
+	m_isCommandListOpen = true;
 	BindTexture(nullptr);
 	activeRTResource->TransitionTo(D3D12_RESOURCE_STATE_RENDER_TARGET, m_commandList.Get());
 	// Indicate that the back buffer will be used as a render target.
@@ -1981,7 +1984,7 @@ void Renderer::EndFrame()
 
 	currentBackBuffer->TransitionTo(D3D12_RESOURCE_STATE_PRESENT, m_commandList.Get());
 	ThrowIfFailed(m_commandList->Close(), "COULD NOT CLOSE COMMAND LIST");
-
+	m_isCommandListOpen = false;
 	//// This is setting up for IMGUI
 	//Resource* currentRtResource = GetActiveRenderTarget()->GetResource();
 	//currentRtResource->TransitionTo(D3D12_RESOURCE_STATE_COPY_SOURCE, m_commandList.Get());
