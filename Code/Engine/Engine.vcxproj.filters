@@ -334,6 +334,9 @@
     <ClCompile Include="Renderer\D3D12\Resource.cpp">
       <Filter>Core</Filter>
     </ClCompile>
+    <ClCompile Include="Renderer\MaterialSystem.cpp">
+      <Filter>Renderer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Math\Vec2.hpp">
@@ -681,6 +684,9 @@
     <ClInclude Include="Renderer\D3D12\DescriptorHeap.hpp" />
     <ClInclude Include="Renderer\ResourceView.hpp" />
     <ClInclude Include="Renderer\D3D12\Resource.hpp" />
+    <ClInclude Include="Renderer\MaterialSystem.hpp">
+      <Filter>Renderer</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

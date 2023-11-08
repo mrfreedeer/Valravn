@@ -432,7 +432,7 @@ void DebugRenderSystem::RenderScreenShapes(Camera const& camera) const
 	//#TODO DX12 FIXTHIS
 
 	renderer->BeginCamera(camera);
-	Material* default2DMat = renderer->CreateOrGetMaterial("Default2DMaterial");
+	Material* default2DMat = renderer->GetMaterialForName("Default2DMaterial");
 	renderer->BindMaterial(default2DMat);
 
 	RenderFreeScreenText(renderer);

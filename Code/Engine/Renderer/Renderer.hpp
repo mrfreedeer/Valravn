@@ -5,6 +5,7 @@
 #include "Engine/Renderer/D3D12/DescriptorHeap.hpp"
 #include "Engine/Renderer/ResourceView.hpp"
 #include "Engine/Renderer/GraphicsCommon.hpp"
+#include "Engine/Renderer/MaterialSystem.hpp"
 #include "Game/EngineBuildPreferences.hpp"
 #include <filesystem>
 #include <cstdint>
@@ -43,6 +44,8 @@ class Image;
 class Camera;
 class ConstantBuffer;
 class BitmapFont;
+
+extern MaterialSystem* g_theMaterialSystem;
 
 struct RendererConfig {
 	Window* m_window = nullptr;
@@ -130,6 +133,7 @@ class Renderer {
 	friend class Buffer;
 	friend class Texture;
 	friend class DescriptorHeap;
+	friend class MaterialSystem;
 public:
 	Renderer(RendererConfig const& config);
 	~Renderer();
@@ -156,7 +160,7 @@ public:
 	ResourceView* CreateResourceView(ResourceViewInfo const& resourceViewInfo, DescriptorHeap* descriptorHeap = nullptr) const;
 	BitmapFont* CreateOrGetBitmapFont(std::filesystem::path bitmapPath);
 	Material* GetMaterialForName(char const* materialName);
-	Material* GetMaterialForPath(char const* materialPath);
+	Material* GetMaterialForPath(std::filesystem::path const& materialPath);
 	Material* GetDefaultMaterial() const;
 	// Binds
 	void BindConstantBuffer(ConstantBuffer* cBuffer, unsigned int slot = 0);
@@ -210,9 +214,7 @@ private:
 	bool CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std::vector<D3D12_SIGNATURE_PARAMETER_DESC>& elementsDescs, std::vector<std::string>& semanticNames);
 	bool CompileShaderToByteCode(std::vector<unsigned char>& outByteCode, ShaderLoadInfo const& loadInfo);
 	void LoadEngineShaderBinaries();
-	void LoadEngineMaterials();
 
-	Material* CreateMaterial(std::string const& materialXMLFile);
 	void CreatePSOForMaterial(Material* material);
 	ShaderByteCode* CompileOrGetShaderBytes(ShaderLoadInfo const& shaderLoadInfo);
 	ShaderByteCode* GetByteCodeForShaderSrc(ShaderLoadInfo const& shaderLoadInfo);
@@ -273,7 +275,6 @@ private:
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 
 	std::vector<ShaderByteCode*> m_shaderByteCodes;
-	std::vector<Material*> m_loadedMaterials;
 	std::vector<ImmediateContext> m_immediateCtxs;
 	std::vector<FxContext> m_effectsCtxs;
 	std::vector<Texture*> m_loadedTextures;

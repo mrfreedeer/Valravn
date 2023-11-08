@@ -56,6 +56,7 @@ typedef tinyxml2::XMLElement XMLElement;
 class Material
 {
 	friend class Renderer;
+	friend class MaterialSystem;
 
 public:
 	Material(const Material& copy) = delete;

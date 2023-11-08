@@ -24,7 +24,7 @@
 #pragma message("ENGINE_DIR == " ENGINE_DIR)
 
 bool is3DDefault = true;
-
+MaterialSystem* g_theMaterialSystem = nullptr;
 
 
 DXGI_FORMAT GetFormatForComponent(D3D_REGISTER_COMPONENT_TYPE componentType, char const* semanticnName, BYTE mask) {
@@ -560,7 +560,6 @@ void Renderer::Startup()
 
 	CreateDefaultRootSignature();
 
-	LoadEngineMaterials();
 	//std::string default2DMatPath = ENGINE_MAT_DIR;
 	//default2DMatPath += "Default2DMaterial.xml";
 	//m_default2DMaterial = CreateMaterial(default2DMatPath);
@@ -569,8 +568,7 @@ void Renderer::Startup()
 	//default3DMatPath += "Default3DMaterial.xml";
 	//m_default3DMaterial = CreateMaterial(default3DMatPath);
 
-	m_default3DMaterial = GetMaterialForName("Default3DMaterial");
-	m_default2DMaterial = GetMaterialForName("Default2DMaterial");
+
 
 	CreateCommandList(m_commandList, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocators[m_currentBackBuffer]);
 
@@ -627,13 +625,22 @@ void Renderer::Startup()
 		modelBuffer = new ConstantBuffer(modelBufferDesc);
 	}
 
+	MaterialSystemConfig matSystemConfig = {
+	this // Renderer
+	};
+	g_theMaterialSystem = new MaterialSystem(matSystemConfig);
+	g_theMaterialSystem->Startup();
+
+	m_default3DMaterial = GetMaterialForName("Default3DMaterial");
+	m_default2DMaterial = GetMaterialForName("Default2DMaterial");
+
+
 	DebugRenderConfig debugSystemConfig;
 	debugSystemConfig.m_renderer = this;
 	debugSystemConfig.m_startHidden = false;
 	debugSystemConfig.m_fontName = "Data/Images/SquirrelFixedFont";
 
 	DebugRenderSystemStartup(debugSystemConfig);
-
 }
 
 
@@ -782,49 +789,9 @@ void Renderer::LoadEngineShaderBinaries()
 
 }
 
-void Renderer::LoadEngineMaterials()
-{
-	std::string materialsPath = ENGINE_MAT_DIR;
-	for (auto const& matPath : std::filesystem::directory_iterator(materialsPath)) {
-		if (matPath.is_directory()) continue;
-
-		CreateMaterial(matPath.path().string());
-	}
-}
-
 Material* Renderer::CreateOrGetMaterial(std::filesystem::path materialPathNoExt)
 {
-	std::string materialXMLPath = materialPathNoExt.replace_extension(".xml").string();
-	Material* material = GetMaterialForName(materialXMLPath.c_str());
-	if (material) {
-		return material;
-	}
-
-	return CreateMaterial(materialXMLPath);
-}
-
-Material* Renderer::CreateMaterial(std::string const& materialXMLFile)
-{
-	XMLDoc materialDoc;
-	XMLError loadStatus = materialDoc.LoadFile(materialXMLFile.c_str());
-	GUARANTEE_OR_DIE(loadStatus == tinyxml2::XML_SUCCESS, Stringf("COULD NOT LOAD MATERIAL XML FILE %s", materialXMLFile.c_str()));
-
-	XMLElement const* firstElem = materialDoc.FirstChildElement("Material");
-
-	std::string matName = ParseXmlAttribute(*firstElem, "name", "Unnamed Material");
-
-	// Material properties
-	XMLElement const* matProperty = firstElem->FirstChildElement();
-
-	Material* newMat = new Material();
-	newMat->LoadFromXML(matProperty);
-	newMat->m_config.m_name = matName;
-	newMat->m_config.m_src = materialXMLFile;
-	CreatePSOForMaterial(newMat);
-
-	m_loadedMaterials.push_back(newMat);
-
-	return newMat;
+	return g_theMaterialSystem->CreateOrGetMaterial(materialPathNoExt);
 }
 
 ShaderByteCode* Renderer::CompileOrGetShaderBytes(ShaderLoadInfo const& shaderLoadInfo)
@@ -1032,26 +999,12 @@ bool Renderer::CreateInputLayoutFromVS(std::vector<uint8_t>& shaderByteCode, std
 
 Material* Renderer::GetMaterialForName(char const* materialName)
 {
-	std::string shaderNoExtension = std::filesystem::path(materialName).replace_extension("").string();
-	for (int shaderIndex = 0; shaderIndex < m_loadedMaterials.size(); shaderIndex++) {
-		Material* shader = m_loadedMaterials[shaderIndex];
-		if (shader->GetName() == shaderNoExtension) {
-			return shader;
-		}
-	}
-	return nullptr;
+	return g_theMaterialSystem->GetMaterialForName(materialName);
 }
 
-Material* Renderer::GetMaterialForPath(char const* materialPath)
+Material* Renderer::GetMaterialForPath(std::filesystem::path const& materialPath)
 {
-	std::string shaderNoExtension = std::filesystem::path(materialPath).replace_extension("").string();
-	for (int shaderIndex = 0; shaderIndex < m_loadedMaterials.size(); shaderIndex++) {
-		Material* shader = m_loadedMaterials[shaderIndex];
-		if (shader->GetPath() == shaderNoExtension) {
-			return shader;
-		}
-	}
-	return nullptr;
+	return g_theMaterialSystem->GetMaterialForPath(materialPath);
 }
 
 Material* Renderer::GetDefaultMaterial() const
@@ -1996,7 +1949,7 @@ void Renderer::EndFrame()
 	m_effectsCtxs.resize(0);
 
 	m_currentFrame++;
-
+	g_theMaterialSystem->EndFrame();
 }
 
 void Renderer::Shutdown()
@@ -2015,11 +1968,6 @@ void Renderer::Shutdown()
 	for (ShaderByteCode*& shaderByteCode : m_shaderByteCodes) {
 		delete shaderByteCode;
 		shaderByteCode = nullptr;
-	}
-
-	for (Material*& shader : m_loadedMaterials) {
-		delete shader;
-		shader = nullptr;
 	}
 
 	for (auto commandAlloc : m_commandAllocators) {
@@ -2075,10 +2023,15 @@ void Renderer::Shutdown()
 	m_dxgiFactory.Reset();
 
 	DebugRenderSystemShutdown();
+
+	g_theMaterialSystem->Shutdown();
+	delete g_theMaterialSystem;
+	g_theMaterialSystem = nullptr;
 }
 
 void Renderer::BeginCamera(Camera const& camera)
 {
+	g_theMaterialSystem->BeginFrame();
 	m_currentCamera = &camera;
 	if (camera.GetCameraMode() == CameraMode::Orthographic) {
 		BindMaterial(m_default2DMaterial);
