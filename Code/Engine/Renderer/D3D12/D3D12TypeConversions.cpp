@@ -46,17 +46,17 @@ BOOL LocalToD3D12(WindingOrder windingOrder)
 	}
 }
 
-D3D12_COMPARISON_FUNC LocalToD3D12(DepthTest depthTest)
+D3D12_COMPARISON_FUNC LocalToD3D12(DepthFunc depthTest)
 {
 	switch (depthTest) {
-	case DepthTest::NEVER: return D3D12_COMPARISON_FUNC_NEVER;
-	case DepthTest::LESS: return D3D12_COMPARISON_FUNC_LESS;
-	case DepthTest::EQUAL: return D3D12_COMPARISON_FUNC_EQUAL;
-	case DepthTest::LESSEQUAL: return D3D12_COMPARISON_FUNC_LESS_EQUAL;
-	case DepthTest::GREATER: return D3D12_COMPARISON_FUNC_GREATER;
-	case DepthTest::NOTEQUAL: return D3D12_COMPARISON_FUNC_NOT_EQUAL;
-	case DepthTest::GREATEREQUAL: return D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-	case DepthTest::ALWAYS: return D3D12_COMPARISON_FUNC_ALWAYS;
+	case DepthFunc::NEVER: return D3D12_COMPARISON_FUNC_NEVER;
+	case DepthFunc::LESS: return D3D12_COMPARISON_FUNC_LESS;
+	case DepthFunc::EQUAL: return D3D12_COMPARISON_FUNC_EQUAL;
+	case DepthFunc::LESSEQUAL: return D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	case DepthFunc::GREATER: return D3D12_COMPARISON_FUNC_GREATER;
+	case DepthFunc::NOTEQUAL: return D3D12_COMPARISON_FUNC_NOT_EQUAL;
+	case DepthFunc::GREATEREQUAL: return D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+	case DepthFunc::ALWAYS: return D3D12_COMPARISON_FUNC_ALWAYS;
 	default:
 		ERROR_AND_DIE(Stringf("UNSUPPORTED DEPTH TEST %d", (int)depthTest).c_str());
 	}

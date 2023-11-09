@@ -57,8 +57,8 @@ VertexToFragment_t VertexMain(vs_input_t input)
 float4 PixelMain(VertexToFragment_t input) : SV_Target0 // semeantic of what I'm returning
 {
     float pixelCount = 1024.0;
-    float dx = 5.0 * (1.0 / pixelCount);
-    float dy = 5.0 * (1.0 / pixelCount);
+    float dx = 2.0 * (1.0 / pixelCount);
+    float dy = 2.0 * (1.0 / pixelCount);
     float2 newUVs = float2(dx * floor(input.uv.x / dx),
                           dy * floor(input.uv.y / dy));
     float4 resultingColor = DiffuseTexture.Sample(SurfaceSampler, newUVs);

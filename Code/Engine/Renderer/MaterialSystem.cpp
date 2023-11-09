@@ -95,6 +95,60 @@ Material* MaterialSystem::CreateMaterial(std::string const& materialXMLFile)
 	return newMat;
 }
 
+
+
+Material* MaterialSystem::GetSiblingMaterial(Material* material, SiblingMatTypes siblingType, unsigned int newSiblingAccessor)
+{
+	Material* siblingMat = nullptr;
+	MaterialConfig newConfig = material->m_config;
+	switch (siblingType)
+	{
+	case SiblingMatTypes::BLEND_MODE_SIBLING:
+		siblingMat = material->m_siblings.m_blendModeSiblings[newSiblingAccessor];
+		newConfig.m_blendMode = (BlendMode)newSiblingAccessor;
+		newConfig.m_name += Stringf("RunTSibBlend(%d)", newSiblingAccessor);
+		break;
+	case SiblingMatTypes::DEPTH_MODE_SIBLING:
+		siblingMat = material->m_siblings.m_depthFuncSiblings[newSiblingAccessor];
+		newConfig.m_depthFunc = (DepthFunc)newSiblingAccessor;
+		newConfig.m_name += Stringf("RunTSibDepth(%d)", newSiblingAccessor);
+		break;
+	case SiblingMatTypes::FILL_MODE_SIBLING:
+		siblingMat = material->m_siblings.m_fillModeSiblings[newSiblingAccessor];
+		newConfig.m_fillMode = (FillMode)newSiblingAccessor;
+		newConfig.m_name += Stringf("RunTSibFill(%d)", newSiblingAccessor);
+		break;
+	case SiblingMatTypes::CULL_MODE_SIBLING:
+		siblingMat = material->m_siblings.m_cullModeSiblings[newSiblingAccessor];
+		newConfig.m_cullMode = (CullMode)newSiblingAccessor;
+		newConfig.m_name += Stringf("RunTSibCull(%d)", newSiblingAccessor);
+		break;
+	case SiblingMatTypes::WINDING_ORDER_SIBLING:
+		siblingMat = material->m_siblings.m_windingOrderSiblings[newSiblingAccessor];
+		newConfig.m_windingOrder = (WindingOrder)newSiblingAccessor;
+		newConfig.m_name += Stringf("RunTSibWinding(%d)", newSiblingAccessor);
+		break;
+	case SiblingMatTypes::TOPOLOGY_SIBLING:
+		siblingMat = material->m_siblings.m_topologySiblings[newSiblingAccessor];
+		newConfig.m_topology = (TopologyType)newSiblingAccessor;
+		newConfig.m_name += Stringf("RunTSibTopology(%d)", newSiblingAccessor);
+		break;
+	default:
+		ERROR_AND_DIE(Stringf("UNRECOGNIZED SIBLING MATERIAL TYPE: %d", siblingType).c_str())
+		break;
+	}
+
+	if (!siblingMat) {
+		siblingMat = new Material(newConfig);
+		m_config.m_renderer->CreatePSOForMaterial(siblingMat);
+
+		m_loadedMaterials.push_back(siblingMat);
+		SetSibling(material, siblingMat, siblingType, newSiblingAccessor);
+	}
+
+	return siblingMat;
+}
+
 void MaterialSystem::LoadEngineMaterials()
 {
 	std::string materialsPath = ENGINE_MAT_DIR;
@@ -102,5 +156,39 @@ void MaterialSystem::LoadEngineMaterials()
 		if (matPath.is_directory()) continue;
 
 		CreateMaterial(matPath.path().string());
+	}
+}
+
+void MaterialSystem::SetSibling(Material* material, Material* siblingMaterial, SiblingMatTypes siblingType, unsigned int newSiblingAccessor)
+{
+	switch (siblingType)
+	{
+	case SiblingMatTypes::BLEND_MODE_SIBLING:
+		material->m_siblings.m_blendModeSiblings[newSiblingAccessor] = siblingMaterial;
+		siblingMaterial->m_siblings.m_blendModeSiblings[(size_t)material->m_config.m_blendMode] = material;
+		break;
+	case SiblingMatTypes::DEPTH_MODE_SIBLING:
+		material->m_siblings.m_depthFuncSiblings[newSiblingAccessor] = siblingMaterial;
+		siblingMaterial->m_siblings.m_depthFuncSiblings[(size_t)material->m_config.m_depthFunc] = material;
+		break;
+	case SiblingMatTypes::FILL_MODE_SIBLING:
+		material->m_siblings.m_fillModeSiblings[newSiblingAccessor] = siblingMaterial;
+		siblingMaterial->m_siblings.m_fillModeSiblings[(size_t)material->m_config.m_fillMode] = material;
+		break;
+	case SiblingMatTypes::CULL_MODE_SIBLING:
+		material->m_siblings.m_cullModeSiblings[newSiblingAccessor] = siblingMaterial;
+		siblingMaterial->m_siblings.m_cullModeSiblings[(size_t)material->m_config.m_cullMode] = material;
+		break;
+	case SiblingMatTypes::WINDING_ORDER_SIBLING:
+		material->m_siblings.m_windingOrderSiblings[newSiblingAccessor] = siblingMaterial;
+		siblingMaterial->m_siblings.m_windingOrderSiblings[(size_t)material->m_config.m_windingOrder] = material;
+		break;
+	case SiblingMatTypes::TOPOLOGY_SIBLING:
+		material->m_siblings.m_topologySiblings[newSiblingAccessor] = siblingMaterial;
+		siblingMaterial->m_siblings.m_topologySiblings[(size_t)material->m_config.m_topology] = material;
+		break;
+	default:
+		ERROR_AND_DIE(Stringf("UNRECOGNIZED SIBLING MATERIAL TYPE: %d", siblingType).c_str())
+			break;
 	}
 }

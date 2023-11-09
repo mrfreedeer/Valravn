@@ -32,7 +32,7 @@ struct MaterialConfig
 	ShaderLoadInfo m_shaders[ShaderType::NUM_SHADER_TYPES] = {};
 
 	BlendMode m_blendMode = BlendMode::OPAQUE;
-	DepthTest m_depthFunc = DepthTest::LESSEQUAL;
+	DepthFunc m_depthFunc = DepthFunc::LESSEQUAL;
 	FillMode m_fillMode = FillMode::SOLID;
 	CullMode m_cullMode = CullMode::BACK;
 	WindingOrder m_windingOrder = WindingOrder::COUNTERCLOCKWISE;
@@ -41,11 +41,23 @@ struct MaterialConfig
 	bool m_stencilEnable = false;
 };
 
+
 struct ShaderByteCode {
 	std::string m_src = "";
 	std::string m_shaderName = "";
 	std::vector<uint8_t> m_byteCode;
 	ShaderType m_shaderType = ShaderType::InvalidShader;
+};
+
+class Material;
+
+struct SiblingMaterials {
+	Material* m_blendModeSiblings[(size_t)BlendMode::NUM_BLEND_MODES] = {};
+	Material* m_depthFuncSiblings[(size_t)DepthFunc::NUM_DEPTH_TESTS] = {};
+	Material* m_fillModeSiblings[(size_t)FillMode::NUM_FILL_MODES] = {};
+	Material* m_cullModeSiblings[(size_t)CullMode::NUM_CULL_MODES] = {};
+	Material* m_windingOrderSiblings[(size_t)WindingOrder::NUM_WINDING_ORDERS] = {};
+	Material* m_topologySiblings[(size_t)TopologyType::NUM_TOPOLOGIES] = {};
 };
 
 namespace tinyxml2 {
@@ -80,8 +92,8 @@ private:
 	char const* GetEntryPoint(ShaderType shaderType) const;
 	static char const* GetTargetForShader(ShaderType shaderType);
 private:
-	MaterialConfig		m_config;
-
+	MaterialConfig	m_config = {};
+	SiblingMaterials m_siblings = {};
 	ShaderByteCode* m_byteCodes[ShaderType::NUM_SHADER_TYPES]= {} ;
 	std::vector<uint8_t> m_cachedPSO;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> m_inputLayout;

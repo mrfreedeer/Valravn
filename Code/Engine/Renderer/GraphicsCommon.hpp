@@ -22,40 +22,43 @@ inline void ThrowIfFailed(long hr, char const* errorMsg) {
 
 enum class BlendMode
 {
-	ALPHA = 1,
+	ALPHA = 0,
 	ADDITIVE,
-	OPAQUE
+	OPAQUE,
+	NUM_BLEND_MODES
 };
 
 enum class CullMode {
-	NONE = 1,
+	NONE = 0,
 	FRONT,
 	BACK,
 	NUM_CULL_MODES
 };
 
 enum class FillMode {
-	SOLID = 1,
+	SOLID = 0,
 	WIREFRAME,
 	NUM_FILL_MODES
 };
 
 enum class WindingOrder {
-	CLOCKWISE = 1,
-	COUNTERCLOCKWISE
+	CLOCKWISE = 0,
+	COUNTERCLOCKWISE,
+	NUM_WINDING_ORDERS
 };
 
 
-enum class DepthTest // Transformed directly to DX11 (if standard changes, unexpected behavior might result) check when changing to > DX11
+enum class DepthFunc // Transformed directly to DX11 (if standard changes, unexpected behavior might result) check when changing to > DX11
 {
-	NEVER = 1,
-	LESS = 2,
-	EQUAL = 3,
-	LESSEQUAL = 4,
-	GREATER = 5,
-	NOTEQUAL = 6,
-	GREATEREQUAL = 7,
-	ALWAYS = 8,
+	NEVER = 0,
+	LESS,
+	EQUAL,
+	LESSEQUAL,
+	GREATER,
+	NOTEQUAL,
+	GREATEREQUAL,
+	ALWAYS,
+	NUM_DEPTH_TESTS
 };
 
 enum class SamplerMode
@@ -72,7 +75,8 @@ enum class TopologyType {// Transformed directly to DX12 (if standard changes, u
 	TOPOLOGY_TYPE_POINT = 1,
 	TOPOLOGY_TYPE_LINE = 2,
 	TOPOLOGY_TYPE_TRIANGLE = 3,
-	TOPOLOGY_TYPE_PATCH = 4
+	TOPOLOGY_TYPE_PATCH = 4,
+	NUM_TOPOLOGIES
 };
 
 /*

@@ -890,7 +890,7 @@ void Renderer::CreatePSOForMaterial(Material* material)
 	);
 
 	D3D12_BLEND_DESC blendDesc = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	SetBlendMode(matConfig.m_blendMode, blendDesc);
+	SetBlendModeSpecs(matConfig.m_blendMode, blendDesc);
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 	psoDesc.InputLayout.NumElements = (UINT)reflectInputDesc.size();
@@ -1018,6 +1018,37 @@ Material* Renderer::GetDefaultMaterial() const
 	}
 
 	return defaultMat;
+}
+
+Material* Renderer::GetDefault2DMaterial() const
+{
+	return m_default2DMaterial;
+}
+
+Material* Renderer::GetDefault3DMaterial() const
+{
+	return m_default3DMaterial;
+}
+
+void Renderer::SetWindingOrder(WindingOrder newWindingOrder)
+{
+	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
+	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::WINDING_ORDER_SIBLING, (unsigned int)newWindingOrder);
+	m_currentDrawCtx.m_material = siblingMat;
+}
+
+void Renderer::SetDepthFunction(DepthFunc newDepthFunc)
+{
+	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
+	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::DEPTH_MODE_SIBLING, (unsigned int)newDepthFunc);
+	m_currentDrawCtx.m_material = siblingMat;
+}
+
+void Renderer::SetTopology(TopologyType newTopologyType)
+{
+	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
+	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::TOPOLOGY_SIBLING, (unsigned int)newTopologyType);
+	m_currentDrawCtx.m_material = siblingMat;
 }
 
 void Renderer::SetDebugName(ID3D12Object* object, char const* name)
@@ -1639,7 +1670,7 @@ void Renderer::CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* dept
 	m_commandList->ClearState(defaultMat->m_PSO);
 }
 
-void Renderer::SetBlendMode(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc)
+void Renderer::SetBlendModeSpecs(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc)
 {
 
 	blendDesc.RenderTarget[0].BlendEnable = true;
@@ -1837,6 +1868,27 @@ void Renderer::ClearAllImmediateContexts()
 void Renderer::SetMaterialPSO(Material* mat)
 {
 	m_commandList->SetPipelineState(mat->m_PSO);
+}
+
+void Renderer::SetBlendMode(BlendMode newBlendMode)
+{
+	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
+	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::BLEND_MODE_SIBLING, (unsigned int)newBlendMode);
+	m_currentDrawCtx.m_material = siblingMat;
+}
+
+void Renderer::SetCullMode(CullMode newCullMode)
+{
+	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
+	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::CULL_MODE_SIBLING, (unsigned int)newCullMode);
+	m_currentDrawCtx.m_material = siblingMat;
+}
+
+void Renderer::SetFillMode(FillMode newFillMode)
+{
+	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
+	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::FILL_MODE_SIBLING, (unsigned int)newFillMode);
+	m_currentDrawCtx.m_material = siblingMat;
 }
 
 void Renderer::BeginFrame()

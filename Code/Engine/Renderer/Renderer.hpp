@@ -1,11 +1,11 @@
 #pragma once
-
 #include "Engine/Math/Vec3.hpp"
 #include "Engine/Math/Mat44.hpp"
 #include "Engine/Renderer/D3D12/DescriptorHeap.hpp"
 #include "Engine/Renderer/ResourceView.hpp"
 #include "Engine/Renderer/GraphicsCommon.hpp"
 #include "Engine/Renderer/MaterialSystem.hpp"
+#include "Engine/Core/EngineCommon.hpp"
 #include "Game/EngineBuildPreferences.hpp"
 #include <filesystem>
 #include <cstdint>
@@ -162,12 +162,20 @@ public:
 	Material* GetMaterialForName(char const* materialName);
 	Material* GetMaterialForPath(std::filesystem::path const& materialPath);
 	Material* GetDefaultMaterial() const;
+	Material* GetDefault2DMaterial() const;
+	Material* GetDefault3DMaterial() const;
 	// Binds
 	void BindConstantBuffer(ConstantBuffer* cBuffer, unsigned int slot = 0);
 	void BindTexture(Texture const* texture, unsigned int slot = 0);
 
 	void BindMaterial(Material* mat);
 	void SetMaterialPSO(Material* mat);
+	void SetBlendMode(BlendMode newBlendMode);
+	void SetCullMode(CullMode newCullMode);
+	void SetFillMode(FillMode newFillMode);
+	void SetWindingOrder(WindingOrder newWindingOrder);
+	void SetDepthFunction(DepthFunc newDepthFunc);
+	void SetTopology(TopologyType newTopologyType);
 
 	// General
 	void SetDebugName(ID3D12Object* object, char const* name);
@@ -228,7 +236,7 @@ private:
 	ResourceView* CreateRenderTargetView(ResourceViewInfo const& viewInfo) const;
 	ResourceView* CreateDepthStencilView(ResourceViewInfo const& viewInfo) const;
 	ResourceView* CreateConstantBufferView(ResourceViewInfo const& viewInfo, DescriptorHeap* descriptorHeap) const;
-	void SetBlendMode(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc);
+	void SetBlendModeSpecs(BlendMode blendMode, D3D12_BLEND_DESC& blendDesc);
 	BitmapFont* CreateBitmapFont(std::filesystem::path bitmapPath);
 	
 	void ClearTexture(Rgba8 const& color, Texture* tex);

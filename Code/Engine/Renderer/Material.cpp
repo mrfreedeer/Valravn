@@ -37,6 +37,14 @@ void Material::LoadFromXML(XMLElement const* xmlElement)
 		ParseAttribute(attrName, *xmlElement);
 		xmlElement = xmlElement->NextSiblingElement();
 	}
+
+	// Sibling with same config is this same material
+	m_siblings.m_blendModeSiblings[(size_t)m_config.m_blendMode] = this;
+	m_siblings.m_cullModeSiblings[(size_t)m_config.m_cullMode] = this;
+	m_siblings.m_depthFuncSiblings[(size_t)m_config.m_depthFunc] = this;
+	m_siblings.m_fillModeSiblings[(size_t)m_config.m_fillMode] = this;
+	m_siblings.m_topologySiblings[(size_t)m_config.m_topology] = this;
+	m_siblings.m_windingOrderSiblings[(size_t)m_config.m_windingOrder] = this;
 }
 
 void Material::ParseShader(std::string const& attributeName, XMLElement const& xmlElement)
@@ -157,31 +165,31 @@ void Material::ParseTopology(XMLElement const& xmlElement)
 void Material::ParseDepthStencil(XMLElement const& xmlElement)
 {
 	std::string depthFunctionStr = ParseXmlAttribute(xmlElement, "depthFunction", "ALWAYS");
-	DepthTest& depthTest = m_config.m_depthFunc;
+	DepthFunc& depthTest = m_config.m_depthFunc;
 
 	if (AreStringsEqualCaseInsensitive(depthFunctionStr, "Lessequal")) {
-		depthTest = DepthTest::LESSEQUAL;
+		depthTest = DepthFunc::LESSEQUAL;
 	}
 	else if (AreStringsEqualCaseInsensitive(depthFunctionStr, "Always")) {
-		depthTest = DepthTest::ALWAYS;
+		depthTest = DepthFunc::ALWAYS;
 	}
 	else if (AreStringsEqualCaseInsensitive(depthFunctionStr, "Equal")) {
-		depthTest = DepthTest::EQUAL;
+		depthTest = DepthFunc::EQUAL;
 	}
 	else if (AreStringsEqualCaseInsensitive(depthFunctionStr, "Greater")) {
-		depthTest = DepthTest::GREATER;
+		depthTest = DepthFunc::GREATER;
 	}
 	else if (AreStringsEqualCaseInsensitive(depthFunctionStr, "GREATEREQUAL")) {
-		depthTest = DepthTest::GREATEREQUAL;
+		depthTest = DepthFunc::GREATEREQUAL;
 	}
 	else if (AreStringsEqualCaseInsensitive(depthFunctionStr, "LESS")) {
-		depthTest = DepthTest::LESS;
+		depthTest = DepthFunc::LESS;
 	}
 	else if (AreStringsEqualCaseInsensitive(depthFunctionStr, "NEVER")) {
-		depthTest = DepthTest::NEVER;
+		depthTest = DepthFunc::NEVER;
 	}
 	else if (AreStringsEqualCaseInsensitive(depthFunctionStr, "NOTEQUAL")) {
-		depthTest = DepthTest::NOTEQUAL;
+		depthTest = DepthFunc::NOTEQUAL;
 	}
 	else {
 		ERROR_AND_DIE("UNSUPPORTED DEPTH TEST");
