@@ -68,6 +68,7 @@ struct CameraConstants {
 
 struct ImmediateContext {
 	ModelConstants m_modelConstants = {};
+	VertexBuffer* const* m_immediateVBO = nullptr;
 	ConstantBuffer** m_cameraCBO = nullptr;
 	ConstantBuffer** m_modelCBO = nullptr;
 	std::map<unsigned int, Texture const*> m_boundTextures;
@@ -167,15 +168,21 @@ public:
 	// Binds
 	void BindConstantBuffer(ConstantBuffer* cBuffer, unsigned int slot = 0);
 	void BindTexture(Texture const* texture, unsigned int slot = 0);
-
 	void BindMaterial(Material* mat);
+	void BindVertexBuffer(VertexBuffer* const& vertexBuffer);
+
 	void SetMaterialPSO(Material* mat);
 	void SetBlendMode(BlendMode newBlendMode);
 	void SetCullMode(CullMode newCullMode);
 	void SetFillMode(FillMode newFillMode);
 	void SetWindingOrder(WindingOrder newWindingOrder);
+	void SetRasterizerState(CullMode cullMode, FillMode fillMode, WindingOrder windingOrder);
 	void SetDepthFunction(DepthFunc newDepthFunc);
+	void SetWriteDepth(bool writeDepth);
+	void SetDepthStencilState(DepthFunc newDepthFunc, bool writeDepth);
 	void SetTopology(TopologyType newTopologyType);
+
+	void DrawVertexBuffer(VertexBuffer* const& vertexBuffer);
 
 	// General
 	void SetDebugName(ID3D12Object* object, char const* name);

@@ -1037,11 +1037,31 @@ void Renderer::SetWindingOrder(WindingOrder newWindingOrder)
 	m_currentDrawCtx.m_material = siblingMat;
 }
 
+void Renderer::SetRasterizerState(CullMode cullMode, FillMode fillMode, WindingOrder windingOrder)
+{
+	SetCullMode(cullMode);
+	SetFillMode(fillMode);
+	SetWindingOrder(windingOrder);
+}
+
 void Renderer::SetDepthFunction(DepthFunc newDepthFunc)
 {
 	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
-	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::DEPTH_MODE_SIBLING, (unsigned int)newDepthFunc);
+	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::DEPTH_FUNC_SIBLING, (unsigned int)newDepthFunc);
 	m_currentDrawCtx.m_material = siblingMat;
+}
+
+void Renderer::SetWriteDepth(bool writeDepth)
+{
+	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
+	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::DEPTH_FUNC_SIBLING, (unsigned int)writeDepth);
+	m_currentDrawCtx.m_material = siblingMat;
+}
+
+void Renderer::SetDepthStencilState(DepthFunc newDepthFunc, bool writeDepth)
+{
+	SetDepthFunction(newDepthFunc);
+	SetWriteDepth(writeDepth);
 }
 
 void Renderer::SetTopology(TopologyType newTopologyType)
@@ -1049,6 +1069,35 @@ void Renderer::SetTopology(TopologyType newTopologyType)
 	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
 	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::TOPOLOGY_SIBLING, (unsigned int)newTopologyType);
 	m_currentDrawCtx.m_material = siblingMat;
+}
+
+void Renderer::DrawVertexBuffer(VertexBuffer* const& vertexBuffer)
+{
+	BindVertexBuffer(vertexBuffer);
+	m_currentDrawCtx.m_srvHandleStart = m_srvHandleStart;
+	m_currentDrawCtx.m_cbvHandleStart = m_cbvHandleStart;
+
+	auto findHighestValTex = [](const std::pair<unsigned int, Texture const*>& a, const std::pair<unsigned int, Texture const*>& b)->bool { return a.first < b.first; };
+	auto findHighestValCbuffer = [](const std::pair<unsigned int, ConstantBuffer*>& a, const std::pair<unsigned int, ConstantBuffer*>& b)->bool { return a.first < b.first; };
+
+	auto texMaxIt = std::max_element(m_currentDrawCtx.m_boundTextures.begin(), m_currentDrawCtx.m_boundTextures.end(), findHighestValTex);
+	auto cBufferMaxIt = std::max_element(m_currentDrawCtx.m_boundCBuffers.begin(), m_currentDrawCtx.m_boundCBuffers.end(), findHighestValCbuffer);
+
+	unsigned int texMax = (texMaxIt != m_currentDrawCtx.m_boundTextures.end()) ? texMaxIt->first : 0;
+	unsigned int cBufferMax = (cBufferMaxIt != m_currentDrawCtx.m_boundCBuffers.end()) ? cBufferMaxIt->first : 0;
+
+	m_srvHandleStart += texMax + 1;
+	m_cbvHandleStart += cBufferMax + 1;
+
+	m_cbvHandleStart += 2;
+
+	if (!m_hasUsedModelSlot) {
+		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
+	}
+	m_immediateCtxs.push_back(m_currentDrawCtx);
+	m_hasUsedModelSlot = true;
+	m_currentDrawCtx.m_immediateVBO = nullptr;
 }
 
 void Renderer::SetDebugName(ID3D12Object* object, char const* name)
@@ -1117,6 +1166,17 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 	//CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), m_currentBackBuffer, m_RTVdescriptorSize);
 	m_commandList->OMSetRenderTargets(1, &currentRTVHandle, FALSE, &dsvHandle);
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	VertexBuffer* usedBuffer = (ctx.m_immediateVBO) ? *ctx.m_immediateVBO : m_immediateVBO;
+
+	D3D12_VERTEX_BUFFER_VIEW D3DbufferView = {};
+	BufferView vBufferView = usedBuffer->GetBufferView();
+	// Initialize the vertex buffer view.
+	D3DbufferView.BufferLocation = vBufferView.m_bufferLocation;
+	D3DbufferView.StrideInBytes = (UINT)vBufferView.m_strideInBytes;
+	D3DbufferView.SizeInBytes = (UINT)vBufferView.m_sizeInBytes;
+
+	m_commandList->IASetVertexBuffers(0, 1, &D3DbufferView);
 
 
 	m_commandList->DrawInstanced((UINT)ctx.m_vertexCount, 1, (UINT)ctx.m_vertexStart, 0);
@@ -1779,6 +1839,13 @@ void Renderer::BindMaterial(Material* mat)
 	m_currentDrawCtx.m_material = mat;
 }
 
+void Renderer::BindVertexBuffer(VertexBuffer* const& vertexBuffer)
+{
+	m_currentDrawCtx.m_immediateVBO = &vertexBuffer;
+	m_currentDrawCtx.m_vertexStart = 0;
+	m_currentDrawCtx.m_vertexCount = (vertexBuffer->GetSize()) / vertexBuffer->GetStride();
+}
+
 void Renderer::CopyTextureToHeap(Texture const* textureToBind, unsigned int handleStart, unsigned int slot)
 {
 	Texture* usedTex = const_cast<Texture*>(textureToBind);
@@ -1846,14 +1913,7 @@ void Renderer::DrawAllImmediateContexts()
 	m_immediateVBO->GuaranteeBufferSize(vertexesSize);
 	m_immediateVBO->CopyCPUToGPU(m_immediateVertexes.data(), vertexesSize);
 
-	D3D12_VERTEX_BUFFER_VIEW D3DbufferView = {};
-	BufferView vBufferView = m_immediateVBO->GetBufferView();
-	// Initialize the vertex buffer view.
-	D3DbufferView.BufferLocation = vBufferView.m_bufferLocation;
-	D3DbufferView.StrideInBytes = (UINT)vBufferView.m_strideInBytes;
-	D3DbufferView.SizeInBytes = (UINT)vBufferView.m_sizeInBytes;
 
-	m_commandList->IASetVertexBuffers(0, 1, &D3DbufferView);
 	for (ImmediateContext& ctx : m_immediateCtxs) {
 		DrawImmediateCtx(ctx);
 	}

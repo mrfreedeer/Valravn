@@ -42,6 +42,7 @@ void Material::LoadFromXML(XMLElement const* xmlElement)
 	m_siblings.m_blendModeSiblings[(size_t)m_config.m_blendMode] = this;
 	m_siblings.m_cullModeSiblings[(size_t)m_config.m_cullMode] = this;
 	m_siblings.m_depthFuncSiblings[(size_t)m_config.m_depthFunc] = this;
+	m_siblings.m_depthEnableSiblings[(size_t)m_config.m_depthEnable] = this;
 	m_siblings.m_fillModeSiblings[(size_t)m_config.m_fillMode] = this;
 	m_siblings.m_topologySiblings[(size_t)m_config.m_topology] = this;
 	m_siblings.m_windingOrderSiblings[(size_t)m_config.m_windingOrder] = this;

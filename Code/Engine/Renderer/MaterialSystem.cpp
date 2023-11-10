@@ -108,10 +108,15 @@ Material* MaterialSystem::GetSiblingMaterial(Material* material, SiblingMatTypes
 		newConfig.m_blendMode = (BlendMode)newSiblingAccessor;
 		newConfig.m_name += Stringf("RunTSibBlend(%d)", newSiblingAccessor);
 		break;
-	case SiblingMatTypes::DEPTH_MODE_SIBLING:
+	case SiblingMatTypes::DEPTH_FUNC_SIBLING:
 		siblingMat = material->m_siblings.m_depthFuncSiblings[newSiblingAccessor];
 		newConfig.m_depthFunc = (DepthFunc)newSiblingAccessor;
 		newConfig.m_name += Stringf("RunTSibDepth(%d)", newSiblingAccessor);
+		break;
+	case SiblingMatTypes::DEPTH_ENABLING_SIBLING:
+		siblingMat = material->m_siblings.m_depthEnableSiblings[newSiblingAccessor];
+		newConfig.m_depthEnable = (bool)newSiblingAccessor;
+		newConfig.m_name += Stringf("RunTSibDepthEnable(%d)", newSiblingAccessor);
 		break;
 	case SiblingMatTypes::FILL_MODE_SIBLING:
 		siblingMat = material->m_siblings.m_fillModeSiblings[newSiblingAccessor];
@@ -167,7 +172,7 @@ void MaterialSystem::SetSibling(Material* material, Material* siblingMaterial, S
 		material->m_siblings.m_blendModeSiblings[newSiblingAccessor] = siblingMaterial;
 		siblingMaterial->m_siblings.m_blendModeSiblings[(size_t)material->m_config.m_blendMode] = material;
 		break;
-	case SiblingMatTypes::DEPTH_MODE_SIBLING:
+	case SiblingMatTypes::DEPTH_FUNC_SIBLING:
 		material->m_siblings.m_depthFuncSiblings[newSiblingAccessor] = siblingMaterial;
 		siblingMaterial->m_siblings.m_depthFuncSiblings[(size_t)material->m_config.m_depthFunc] = material;
 		break;

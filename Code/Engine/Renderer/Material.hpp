@@ -54,6 +54,7 @@ class Material;
 struct SiblingMaterials {
 	Material* m_blendModeSiblings[(size_t)BlendMode::NUM_BLEND_MODES] = {};
 	Material* m_depthFuncSiblings[(size_t)DepthFunc::NUM_DEPTH_TESTS] = {};
+	Material* m_depthEnableSiblings[2] = {}; // Only one with hard coded two. It's either on or off
 	Material* m_fillModeSiblings[(size_t)FillMode::NUM_FILL_MODES] = {};
 	Material* m_cullModeSiblings[(size_t)CullMode::NUM_CULL_MODES] = {};
 	Material* m_windingOrderSiblings[(size_t)WindingOrder::NUM_WINDING_ORDERS] = {};
