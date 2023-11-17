@@ -116,13 +116,15 @@ constexpr char const* EnumToString(TopologyType topologyType) {
 /*
 * Since SRV UAV AND CBV share heap, the start and end of each needs to be managed
 */
-constexpr unsigned int SRV_UAV_CBV_DEFAULT_SIZE = 4096;
+constexpr unsigned int SRV_UAV_CBV_DEFAULT_SIZE = 16384;
 constexpr unsigned int CBV_HANDLE_START = 0;
-constexpr unsigned int CBV_HANDLE_END = (SRV_UAV_CBV_DEFAULT_SIZE / 8) * 3 - 1;
+constexpr unsigned int CBV_HANDLE_END = (SRV_UAV_CBV_DEFAULT_SIZE / 2) - 1;
+//constexpr unsigned int CBV_HANDLE_END = (SRV_UAV_CBV_DEFAULT_SIZE / 8) * 3 - 1;
 constexpr unsigned int CBV_DESCRIPTORS_AMOUNT = CBV_HANDLE_END - CBV_HANDLE_START + 1;
 
 constexpr unsigned int SRV_HANDLE_START = CBV_HANDLE_END + 1;
-constexpr unsigned int SRV_HANDLE_END = SRV_HANDLE_START + (SRV_UAV_CBV_DEFAULT_SIZE / 2) - 1;
+constexpr unsigned int SRV_HANDLE_END = SRV_HANDLE_START + (SRV_UAV_CBV_DEFAULT_SIZE / 8) * 3 - 1;
+//constexpr unsigned int SRV_HANDLE_END = SRV_HANDLE_START + (SRV_UAV_CBV_DEFAULT_SIZE / 2) - 1;
 constexpr unsigned int SRV_DESCRIPTORS_AMOUNT = SRV_HANDLE_END - SRV_HANDLE_START + 1;
 
 constexpr unsigned int UAV_HANDLE_START = SRV_HANDLE_END + 1;
