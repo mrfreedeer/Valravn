@@ -3,6 +3,7 @@
 #include "Engine/Renderer/ConstantBuffer.hpp"
 #include "Engine/Renderer/DefaultShader.hpp"
 #include "Engine/Renderer/VertexBuffer.hpp"
+#include "Engine/Renderer/IndexBuffer.hpp"
 #include "Engine/Renderer/Material.hpp"
 #include "Engine/Renderer/Texture.hpp"
 #include "Engine/Renderer/BitmapFont.hpp"
@@ -616,6 +617,17 @@ void Renderer::Startup()
 
 	m_immediateVBO = new VertexBuffer(vertexBuffDesc);
 
+
+	BufferDesc indexBufferDesc = {};
+	indexBufferDesc.data = nullptr;
+	indexBufferDesc.descriptorHeap = nullptr;
+	indexBufferDesc.memoryUsage = MemoryUsage::Dynamic;
+	indexBufferDesc.owner = this;
+	indexBufferDesc.size = sizeof(unsigned int);
+	indexBufferDesc.stride = sizeof(unsigned int);
+
+	m_immediateIBO = new IndexBuffer(indexBufferDesc);
+
 	// Allocating the memory so they're ready to use
 	for (int bufferInd = 0; bufferInd < m_cameraCBOArray.size(); bufferInd++) {
 		ConstantBuffer*& cameraBuffer = m_cameraCBOArray[bufferInd];
@@ -1054,7 +1066,7 @@ void Renderer::SetDepthFunction(DepthFunc newDepthFunc)
 void Renderer::SetWriteDepth(bool writeDepth)
 {
 	Material* currentMaterial = (m_currentDrawCtx.m_material) ? m_currentDrawCtx.m_material : GetDefaultMaterial();
-	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::DEPTH_FUNC_SIBLING, (unsigned int)writeDepth);
+	Material* siblingMat = g_theMaterialSystem->GetSiblingMaterial(currentMaterial, SiblingMatTypes::DEPTH_ENABLING_SIBLING, (unsigned int)writeDepth);
 	m_currentDrawCtx.m_material = siblingMat;
 }
 
@@ -1098,6 +1110,39 @@ void Renderer::DrawVertexBuffer(VertexBuffer* const& vertexBuffer)
 	m_immediateCtxs.push_back(m_currentDrawCtx);
 	m_hasUsedModelSlot = true;
 	m_currentDrawCtx.m_immediateVBO = nullptr;
+}
+
+void Renderer::DrawIndexedVertexBuffer(VertexBuffer* const& vertexBuffer, IndexBuffer* const& indexBuffer, size_t indexCount)
+{
+	BindVertexBuffer(vertexBuffer);
+	BindIndexBuffer(indexBuffer, indexCount);
+
+	m_currentDrawCtx.m_srvHandleStart = m_srvHandleStart;
+	m_currentDrawCtx.m_cbvHandleStart = m_cbvHandleStart;
+	m_currentDrawCtx.m_isIndexedDraw = true;
+	auto findHighestValTex = [](const std::pair<unsigned int, Texture const*>& a, const std::pair<unsigned int, Texture const*>& b)->bool { return a.first < b.first; };
+	auto findHighestValCbuffer = [](const std::pair<unsigned int, ConstantBuffer*>& a, const std::pair<unsigned int, ConstantBuffer*>& b)->bool { return a.first < b.first; };
+
+	auto texMaxIt = std::max_element(m_currentDrawCtx.m_boundTextures.begin(), m_currentDrawCtx.m_boundTextures.end(), findHighestValTex);
+	auto cBufferMaxIt = std::max_element(m_currentDrawCtx.m_boundCBuffers.begin(), m_currentDrawCtx.m_boundCBuffers.end(), findHighestValCbuffer);
+
+	unsigned int texMax = (texMaxIt != m_currentDrawCtx.m_boundTextures.end()) ? texMaxIt->first : 0;
+	unsigned int cBufferMax = (cBufferMaxIt != m_currentDrawCtx.m_boundCBuffers.end()) ? cBufferMaxIt->first : 0;
+
+	m_srvHandleStart += texMax + 1;
+	m_cbvHandleStart += cBufferMax + 1;
+
+	m_cbvHandleStart += 2;
+
+	if (!m_hasUsedModelSlot) {
+		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
+	}
+	m_immediateCtxs.push_back(m_currentDrawCtx);
+	m_hasUsedModelSlot = true;
+	m_currentDrawCtx.m_immediateVBO = nullptr;
+	m_currentDrawCtx.m_immediateIBO = nullptr;
+	m_currentDrawCtx.m_isIndexedDraw = false;
 }
 
 void Renderer::SetDebugName(ID3D12Object* object, char const* name)
@@ -1168,6 +1213,10 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	VertexBuffer* usedBuffer = (ctx.m_immediateVBO) ? *ctx.m_immediateVBO : m_immediateVBO;
+	IndexBuffer* usedIndexedBuffer = nullptr;
+
+
+
 
 	D3D12_VERTEX_BUFFER_VIEW D3DbufferView = {};
 	BufferView vBufferView = usedBuffer->GetBufferView();
@@ -1178,8 +1227,20 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 
 	m_commandList->IASetVertexBuffers(0, 1, &D3DbufferView);
 
+	if (ctx.m_isIndexedDraw) {
+		usedIndexedBuffer = (ctx.m_immediateIBO) ? *ctx.m_immediateIBO : m_immediateIBO;
+		D3D12_INDEX_BUFFER_VIEW D3DindexedBufferView = {};
+		BufferView iBufferView = usedIndexedBuffer->GetBufferView();
+		D3DindexedBufferView.BufferLocation = iBufferView.m_bufferLocation;
+		D3DindexedBufferView.Format = DXGI_FORMAT_R32_UINT;
+		D3DindexedBufferView.SizeInBytes = (UINT)iBufferView.m_sizeInBytes;
 
-	m_commandList->DrawInstanced((UINT)ctx.m_vertexCount, 1, (UINT)ctx.m_vertexStart, 0);
+		m_commandList->IASetIndexBuffer(&D3DindexedBufferView);
+		m_commandList->DrawIndexedInstanced((UINT)ctx.m_indexCount, 1, (UINT)ctx.m_indexStart, (INT)ctx.m_vertexStart, 0);
+	}
+	else {
+		m_commandList->DrawInstanced((UINT)ctx.m_vertexCount, 1, (UINT)ctx.m_vertexStart, 0);
+	}
 
 }
 
@@ -1225,7 +1286,7 @@ void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* verte
 
 	m_cbvHandleStart += 2;
 
-	const UINT vertexBufferSize = numVertexes * sizeof(Vertex_PCU);
+	//const UINT vertexBufferSize = numVertexes * sizeof(Vertex_PCU);
 
 	/*BufferDesc bufferDesc = {};
 	bufferDesc.data = vertexes;
@@ -1248,6 +1309,60 @@ void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* verte
 	}
 	m_immediateCtxs.push_back(m_currentDrawCtx);
 	m_hasUsedModelSlot = true;
+}
+
+void Renderer::DrawIndexedVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes, unsigned int numIndices, unsigned int const* indices)
+{
+	m_currentDrawCtx.m_cbvHandleStart = m_cbvHandleStart;
+	m_currentDrawCtx.m_isIndexedDraw = true;
+
+	auto findHighestValTex = [](const std::pair<unsigned int, Texture const*>& a, const std::pair<unsigned int, Texture const*>& b)->bool { return a.first < b.first; };
+	auto findHighestValCbuffer = [](const std::pair<unsigned int, ConstantBuffer*>& a, const std::pair<unsigned int, ConstantBuffer*>& b)->bool { return a.first < b.first; };
+
+	auto texMaxIt = std::max_element(m_currentDrawCtx.m_boundTextures.begin(), m_currentDrawCtx.m_boundTextures.end(), findHighestValTex);
+	auto cBufferMaxIt = std::max_element(m_currentDrawCtx.m_boundCBuffers.begin(), m_currentDrawCtx.m_boundCBuffers.end(), findHighestValCbuffer);
+
+	unsigned int texMax = (texMaxIt != m_currentDrawCtx.m_boundTextures.end()) ? texMaxIt->first : 0;
+	unsigned int cBufferMax = (cBufferMaxIt != m_currentDrawCtx.m_boundCBuffers.end()) ? cBufferMaxIt->first : 0;
+
+	m_srvHandleStart += texMax + 1;
+	m_cbvHandleStart += cBufferMax + 1;
+
+	m_cbvHandleStart += 2;
+
+	//const UINT vertexBufferSize = numVertexes * sizeof(Vertex_PCU);
+
+	/*BufferDesc bufferDesc = {};
+	bufferDesc.data = vertexes;
+	bufferDesc.descriptorHeap = nullptr;
+	bufferDesc.memoryUsage = MemoryUsage::Dynamic;
+	bufferDesc.owner = this;
+	bufferDesc.size = vertexBufferSize;
+	bufferDesc.stride = sizeof(Vertex_PCU);
+
+	VertexBuffer* vBuffer = new VertexBuffer(bufferDesc);
+	m_currentDrawCtx.m_immediateBuffer = vBuffer;*/
+
+	m_currentDrawCtx.m_vertexCount = (size_t)numVertexes;
+	m_currentDrawCtx.m_vertexStart = m_immediateVertexes.size();
+	std::copy(vertexes, vertexes + numVertexes, std::back_inserter(m_immediateVertexes));
+
+	m_currentDrawCtx.m_indexCount = (size_t)numIndices;
+	m_currentDrawCtx.m_indexStart = m_immediateIndices.size();
+	std::copy(indices, indices + numIndices, std::back_inserter(m_immediateIndices));
+
+	if (!m_hasUsedModelSlot) {
+		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
+	}
+	m_immediateCtxs.push_back(m_currentDrawCtx);
+	m_hasUsedModelSlot = true;
+	m_currentDrawCtx.m_isIndexedDraw = false;
+}
+
+void Renderer::DrawIndexedVertexArray(std::vector<Vertex_PCU> const& vertexes, std::vector<unsigned int> const& indices)
+{
+	DrawIndexedVertexArray((unsigned int)vertexes.size(), vertexes.data(), (unsigned int)indices.size(), indices.data());
 }
 
 void Renderer::SetModelMatrix(Mat44 const& modelMat)
@@ -1846,6 +1961,13 @@ void Renderer::BindVertexBuffer(VertexBuffer* const& vertexBuffer)
 	m_currentDrawCtx.m_vertexCount = (vertexBuffer->GetSize()) / vertexBuffer->GetStride();
 }
 
+void Renderer::BindIndexBuffer(IndexBuffer* const& indexBuffer, size_t indexCount)
+{
+	m_currentDrawCtx.m_immediateIBO = &indexBuffer;
+	m_currentDrawCtx.m_indexStart = 0;
+	m_currentDrawCtx.m_indexCount = indexCount;
+}
+
 void Renderer::CopyTextureToHeap(Texture const* textureToBind, unsigned int handleStart, unsigned int slot)
 {
 	Texture* usedTex = const_cast<Texture*>(textureToBind);
@@ -1913,6 +2035,9 @@ void Renderer::DrawAllImmediateContexts()
 	m_immediateVBO->GuaranteeBufferSize(vertexesSize);
 	m_immediateVBO->CopyCPUToGPU(m_immediateVertexes.data(), vertexesSize);
 
+	size_t indexSize = sizeof(unsigned) * m_immediateIndices.size();
+	m_immediateIBO->GuaranteeBufferSize(indexSize);
+	m_immediateIBO->CopyCPUToGPU(m_immediateIndices.data(), indexSize);
 
 	for (ImmediateContext& ctx : m_immediateCtxs) {
 		DrawImmediateCtx(ctx);
@@ -1953,6 +2078,7 @@ void Renderer::SetFillMode(FillMode newFillMode)
 
 void Renderer::BeginFrame()
 {
+	g_theMaterialSystem->BeginFrame();
 	DebugRenderBeginFrame();
 
 	m_currentModelCBufferSlot = 0;
@@ -2011,6 +2137,7 @@ void Renderer::BeginFrame()
 	//m_defaultRenderTarget->GetClearColour().GetAsFloats(clearColor);
 	//m_commandList->ClearRenderTargetView(currentRTVHandle, clearColor, 0, nullptr);
 	m_immediateVertexes.clear();
+	m_immediateIndices.clear();
 
 
 #if defined(ENGINE_USE_IMGUI)
@@ -2062,7 +2189,7 @@ void Renderer::EndFrame()
 
 	m_currentFrame++;
 	g_theMaterialSystem->EndFrame();
-}
+	}
 
 void Renderer::Shutdown()
 {
@@ -2124,6 +2251,9 @@ void Renderer::Shutdown()
 	delete m_immediateVBO;
 	m_immediateVBO = nullptr;
 
+	delete m_immediateIBO;
+	m_immediateIBO = nullptr;
+
 	m_commandList.Reset();
 	m_ResourcesCommandList.Reset();
 	m_rootSignature.Reset();
@@ -2143,7 +2273,6 @@ void Renderer::Shutdown()
 
 void Renderer::BeginCamera(Camera const& camera)
 {
-	g_theMaterialSystem->BeginFrame();
 	m_currentCamera = &camera;
 	if (camera.GetCameraMode() == CameraMode::Orthographic) {
 		BindMaterial(m_default2DMaterial);

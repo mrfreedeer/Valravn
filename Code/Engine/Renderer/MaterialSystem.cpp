@@ -106,12 +106,12 @@ Material* MaterialSystem::GetSiblingMaterial(Material* material, SiblingMatTypes
 	case SiblingMatTypes::BLEND_MODE_SIBLING:
 		siblingMat = material->m_siblings.m_blendModeSiblings[newSiblingAccessor];
 		newConfig.m_blendMode = (BlendMode)newSiblingAccessor;
-		newConfig.m_name += Stringf("RunTSibBlend(%d)", newSiblingAccessor);
+		newConfig.m_name += Stringf("RunTSibBlend(%s)", EnumToString((BlendMode)newSiblingAccessor));
 		break;
 	case SiblingMatTypes::DEPTH_FUNC_SIBLING:
 		siblingMat = material->m_siblings.m_depthFuncSiblings[newSiblingAccessor];
 		newConfig.m_depthFunc = (DepthFunc)newSiblingAccessor;
-		newConfig.m_name += Stringf("RunTSibDepth(%d)", newSiblingAccessor);
+		newConfig.m_name += Stringf("RunTSibDepth(%s)", EnumToString((DepthFunc)newSiblingAccessor));
 		break;
 	case SiblingMatTypes::DEPTH_ENABLING_SIBLING:
 		siblingMat = material->m_siblings.m_depthEnableSiblings[newSiblingAccessor];
@@ -121,22 +121,22 @@ Material* MaterialSystem::GetSiblingMaterial(Material* material, SiblingMatTypes
 	case SiblingMatTypes::FILL_MODE_SIBLING:
 		siblingMat = material->m_siblings.m_fillModeSiblings[newSiblingAccessor];
 		newConfig.m_fillMode = (FillMode)newSiblingAccessor;
-		newConfig.m_name += Stringf("RunTSibFill(%d)", newSiblingAccessor);
+		newConfig.m_name += Stringf("RunTSibFill(%s)", EnumToString((FillMode)newSiblingAccessor));
 		break;
 	case SiblingMatTypes::CULL_MODE_SIBLING:
 		siblingMat = material->m_siblings.m_cullModeSiblings[newSiblingAccessor];
 		newConfig.m_cullMode = (CullMode)newSiblingAccessor;
-		newConfig.m_name += Stringf("RunTSibCull(%d)", newSiblingAccessor);
+		newConfig.m_name += Stringf("RunTSibCull(%s)", EnumToString((CullMode)newSiblingAccessor));
 		break;
 	case SiblingMatTypes::WINDING_ORDER_SIBLING:
 		siblingMat = material->m_siblings.m_windingOrderSiblings[newSiblingAccessor];
 		newConfig.m_windingOrder = (WindingOrder)newSiblingAccessor;
-		newConfig.m_name += Stringf("RunTSibWinding(%d)", newSiblingAccessor);
+		newConfig.m_name += Stringf("RunTSibWinding(%s)", EnumToString((WindingOrder)newSiblingAccessor));
 		break;
 	case SiblingMatTypes::TOPOLOGY_SIBLING:
 		siblingMat = material->m_siblings.m_topologySiblings[newSiblingAccessor];
 		newConfig.m_topology = (TopologyType)newSiblingAccessor;
-		newConfig.m_name += Stringf("RunTSibTopology(%d)", newSiblingAccessor);
+		newConfig.m_name += Stringf("RunTSibTopology(%s)", EnumToString((TopologyType)newSiblingAccessor));
 		break;
 	default:
 		ERROR_AND_DIE(Stringf("UNRECOGNIZED SIBLING MATERIAL TYPE: %d", siblingType).c_str())
@@ -175,6 +175,10 @@ void MaterialSystem::SetSibling(Material* material, Material* siblingMaterial, S
 	case SiblingMatTypes::DEPTH_FUNC_SIBLING:
 		material->m_siblings.m_depthFuncSiblings[newSiblingAccessor] = siblingMaterial;
 		siblingMaterial->m_siblings.m_depthFuncSiblings[(size_t)material->m_config.m_depthFunc] = material;
+		break;
+	case SiblingMatTypes::DEPTH_ENABLING_SIBLING:
+		material->m_siblings.m_depthEnableSiblings[newSiblingAccessor] = siblingMaterial;
+		siblingMaterial->m_siblings.m_depthEnableSiblings[(size_t)material->m_config.m_depthEnable] = material;
 		break;
 	case SiblingMatTypes::FILL_MODE_SIBLING:
 		material->m_siblings.m_fillModeSiblings[newSiblingAccessor] = siblingMaterial;

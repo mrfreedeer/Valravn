@@ -3,7 +3,7 @@
 
 class ResourceView;
 
-class ConstantBuffer : Buffer
+class ConstantBuffer : public Buffer
 {
 	friend class Renderer;
 

@@ -36,6 +36,7 @@ struct ShaderLoadInfo;
 class Window;
 class Material;
 class VertexBuffer;
+class IndexBuffer;
 struct Rgba8;
 struct Vertex_PCU;
 class Texture;
@@ -68,13 +69,17 @@ struct CameraConstants {
 
 struct ImmediateContext {
 	ModelConstants m_modelConstants = {};
+	bool m_isIndexedDraw = false;
 	VertexBuffer* const* m_immediateVBO = nullptr;
+	IndexBuffer* const* m_immediateIBO = nullptr;
 	ConstantBuffer** m_cameraCBO = nullptr;
 	ConstantBuffer** m_modelCBO = nullptr;
 	std::map<unsigned int, Texture const*> m_boundTextures;
 	std::map<unsigned int, ConstantBuffer*> m_boundCBuffers;
 	size_t m_vertexStart = 0;
 	size_t m_vertexCount = 0;
+	size_t m_indexStart = 0; 
+	size_t m_indexCount = 0;
 	//VertexBuffer* m_immediateBuffer = nullptr;
 	Material* m_material = nullptr;
 	Texture* m_renderTargets[8] = {};
@@ -152,6 +157,8 @@ public:
 	Texture* CreateOrGetTextureFromFile(char const* imageFilePath);
 	void DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes);
 	void DrawVertexArray(std::vector<Vertex_PCU> const& vertexes);
+	void DrawIndexedVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes, unsigned int numIndices, unsigned int const* indices);
+	void DrawIndexedVertexArray(std::vector<Vertex_PCU> const& vertexes, std::vector<unsigned int> const& indices);
 	void SetModelMatrix(Mat44 const& modelMat);
 	void SetModelColor(Rgba8 const& modelColor);
 	void ExecuteCommandLists(ID3D12CommandList** commandLists, unsigned int count);
@@ -170,6 +177,7 @@ public:
 	void BindTexture(Texture const* texture, unsigned int slot = 0);
 	void BindMaterial(Material* mat);
 	void BindVertexBuffer(VertexBuffer* const& vertexBuffer);
+	void BindIndexBuffer(IndexBuffer* const& indexBuffer, size_t indexCount);
 
 	void SetMaterialPSO(Material* mat);
 	void SetBlendMode(BlendMode newBlendMode);
@@ -183,6 +191,7 @@ public:
 	void SetTopology(TopologyType newTopologyType);
 
 	void DrawVertexBuffer(VertexBuffer* const& vertexBuffer);
+	void DrawIndexedVertexBuffer(VertexBuffer* const& vertexBuffer, IndexBuffer* const& indexBuffer, size_t indexCount);
 
 	// General
 	void SetDebugName(ID3D12Object* object, char const* name);
@@ -311,7 +320,9 @@ private:
 	std::vector<ConstantBuffer*> m_cameraCBOArray;
 	std::vector<ConstantBuffer*> m_modelCBOArray;
 	std::vector<Vertex_PCU> m_immediateVertexes;
+	std::vector<unsigned int> m_immediateIndices;
 	VertexBuffer* m_immediateVBO = nullptr;
+	IndexBuffer* m_immediateIBO = nullptr;
 	unsigned int m_currentCameraCBufferSlot = 0;
 	unsigned int m_currentModelCBufferSlot = 0;
 	bool m_hasUsedModelSlot = false;

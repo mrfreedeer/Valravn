@@ -19,7 +19,7 @@ inline void ThrowIfFailed(long hr, char const* errorMsg) {
 
 
 
-
+static const char* BlendModeStrings[] = {"ALPHA", "ADDITIVE", "OPAQUE"};
 enum class BlendMode
 {
 	ALPHA = 0,
@@ -28,6 +28,7 @@ enum class BlendMode
 	NUM_BLEND_MODES
 };
 
+static const char* CullModeStrings[] = { "NONE", "FRONT", "BACK" };
 enum class CullMode {
 	NONE = 0,
 	FRONT,
@@ -35,12 +36,14 @@ enum class CullMode {
 	NUM_CULL_MODES
 };
 
+static const char* FillModeStrings[] = { "SOLID", "WIREFRAME" };
 enum class FillMode {
 	SOLID = 0,
 	WIREFRAME,
 	NUM_FILL_MODES
 };
 
+static const char* WindingOrderStrings[] = { "CLOCKWISE", "COUNTERCLOCKWISE" };
 enum class WindingOrder {
 	CLOCKWISE = 0,
 	COUNTERCLOCKWISE,
@@ -48,6 +51,7 @@ enum class WindingOrder {
 };
 
 
+static const char* DepthFuncStrings[] = { "NEVER", "LESS", "EQUAL", "LESSEQUAL", "GREATER", "NOTEQUAL", "GREATEREQUAL", "ALWAYS"};
 enum class DepthFunc // Transformed directly to DX11 (if standard changes, unexpected behavior might result) check when changing to > DX11
 {
 	NEVER = 0,
@@ -61,6 +65,7 @@ enum class DepthFunc // Transformed directly to DX11 (if standard changes, unexp
 	NUM_DEPTH_TESTS
 };
 
+static const char* SamplerModeStrings[] = { "POINTCLAMP", "POINTWRAP", "BILINEARCLAMP", "BILINEARWRAP", "SHADOWMAPS" };
 enum class SamplerMode
 {
 	POINTCLAMP,
@@ -70,6 +75,7 @@ enum class SamplerMode
 	SHADOWMAPS,
 };
 
+static const char* TopologyTypeStrings[] = { "UNDEFINED", "POINT", "LINE", "TRIANGLE", "PATCH" };
 enum class TopologyType {// Transformed directly to DX12 (if standard changes, unexpected behavior might result) check when changing to > DX12
 	TOPOLOGY_TYPE_UNDEFINED = 0,
 	TOPOLOGY_TYPE_POINT = 1,
@@ -78,6 +84,34 @@ enum class TopologyType {// Transformed directly to DX12 (if standard changes, u
 	TOPOLOGY_TYPE_PATCH = 4,
 	NUM_TOPOLOGIES
 };
+
+constexpr char const* EnumToString(BlendMode blendMode) {
+	return BlendModeStrings[(int)blendMode];
+}
+
+constexpr char const* EnumToString(CullMode cullMode) {
+	return CullModeStrings[(int)cullMode];
+}
+
+constexpr char const* EnumToString(FillMode fillMode) {
+	return FillModeStrings[(int)fillMode];
+}
+
+constexpr char const* EnumToString(WindingOrder windingOrder) {
+	return WindingOrderStrings[(int)windingOrder];
+}
+
+constexpr char const* EnumToString(DepthFunc depthFunc) {
+	return DepthFuncStrings[(int)depthFunc];
+}
+
+constexpr char const* EnumToString(SamplerMode samplerMode) {
+	return SamplerModeStrings[(int)samplerMode];
+}
+
+constexpr char const* EnumToString(TopologyType topologyType) {
+	return TopologyTypeStrings[(int)topologyType];
+}
 
 /*
 * Since SRV UAV AND CBV share heap, the start and end of each needs to be managed

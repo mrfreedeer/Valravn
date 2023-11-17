@@ -1,22 +1,11 @@
 #pragma once
+#include "Engine/Core/Buffer.hpp"
 
-struct ID3D11Buffer;
-struct ID3D11Device;
-
-class IndexBuffer
+class IndexBuffer : public Buffer
 {
 	friend class Renderer;
 
 public:
-	IndexBuffer(ID3D11Device* device, size_t size);
-	IndexBuffer(const IndexBuffer& copy) = delete;
+	IndexBuffer(BufferDesc const& bufferDesc);
 	virtual ~IndexBuffer();
-
-	unsigned int GetStride() const;
-	bool GuaranteeBufferSize(size_t newsize);
-
-
-	ID3D11Buffer* m_buffer = nullptr;
-	ID3D11Device* m_device = nullptr;
-	size_t m_size = 0;
 };
