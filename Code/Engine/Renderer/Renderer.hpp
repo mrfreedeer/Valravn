@@ -72,8 +72,8 @@ struct ImmediateContext {
 	bool m_isIndexedDraw = false;
 	VertexBuffer* const* m_immediateVBO = nullptr;
 	IndexBuffer* const* m_immediateIBO = nullptr;
-	ConstantBuffer** m_cameraCBO = nullptr;
-	ConstantBuffer** m_modelCBO = nullptr;
+	ConstantBuffer* m_cameraCBO = nullptr;
+	ConstantBuffer* m_modelCBO = nullptr;
 	std::map<unsigned int, Texture const*> m_boundTextures;
 	std::map<unsigned int, ConstantBuffer*> m_boundCBuffers;
 	size_t m_vertexStart = 0;
@@ -259,10 +259,10 @@ private:
 	void ResetGPUDescriptorHeaps();
 	void CopyTextureToHeap(Texture const* textureToBind, unsigned int handleStart, unsigned int slot = 0);
 	void CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int handleStart, unsigned int slot = 0);
-	ConstantBuffer*& GetNextCameraBuffer();
-	ConstantBuffer*& GetNextModelBuffer();
-	ConstantBuffer*& GetCurrentCameraBuffer();
-	ConstantBuffer*& GetCurrentModelBuffer();
+	ConstantBuffer& GetNextCameraBuffer();
+	ConstantBuffer& GetNextModelBuffer();
+	ConstantBuffer& GetCurrentCameraBuffer();
+	ConstantBuffer& GetCurrentModelBuffer();
 	void SetColorTarget(Texture* dst);
 
 	void DrawAllEffects();
@@ -317,8 +317,8 @@ private:
 	unsigned int m_currentFrame = 0;
 	unsigned int m_RTVdescriptorSize = 0;
 
-	std::vector<ConstantBuffer*> m_cameraCBOArray;
-	std::vector<ConstantBuffer*> m_modelCBOArray;
+	std::vector<ConstantBuffer> m_cameraCBOArray;
+	std::vector<ConstantBuffer> m_modelCBOArray;
 	std::vector<Vertex_PCU> m_immediateVertexes;
 	std::vector<unsigned int> m_immediateIndices;
 	VertexBuffer* m_immediateVBO = nullptr;

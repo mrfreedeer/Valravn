@@ -13,6 +13,11 @@ Buffer::Buffer(BufferDesc const& bufferDesc) :
 	m_descriptorHeap(bufferDesc.descriptorHeap),
 	m_data(bufferDesc.data)
 {
+	
+}
+
+void Buffer::Initialize()
+{
 	m_buffer = new Resource();
 	switch (m_memoryUsage)
 	{
@@ -66,7 +71,7 @@ void Buffer::CopyCPUToGPU(void const* data, size_t sizeInBytes)
 
 	UINT8* dataBegin;
 	CD3DX12_RANGE readRange(0, sizeInBytes);        // We do not intend to read from this resource on the CPU.
-	ThrowIfFailed(resource->Map(0, &readRange, reinterpret_cast<void**>(&dataBegin)), "COULD NOT BUFFER");
+	ThrowIfFailed(resource->Map(0, &readRange, reinterpret_cast<void**>(&dataBegin)), "COULD NOT MAP BUFFER");
 	memcpy(dataBegin, data, sizeInBytes);
 	resource->Unmap(0, nullptr);
 }

@@ -3,7 +3,7 @@
 IndexBuffer::IndexBuffer(BufferDesc const& bufferDesc):
 	Buffer(bufferDesc)
 {
-
+	Initialize();
 }
 
 IndexBuffer::~IndexBuffer()

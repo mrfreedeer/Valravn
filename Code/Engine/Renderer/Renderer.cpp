@@ -591,21 +591,6 @@ void Renderer::Startup()
 	whiteTexelImg.m_imageFilePath = "DefaultTexture";
 	m_defaultTexture = CreateTextureFromImage(whiteTexelImg);
 
-	// Assuming worst case scenario, which would be all constant buffers are full and are only engine ones
-	m_cameraCBOArray.resize(CBV_DESCRIPTORS_AMOUNT / 2);
-	m_modelCBOArray.resize(CBV_DESCRIPTORS_AMOUNT / 2);
-
-	BufferDesc cameraBufferDesc = {};
-	cameraBufferDesc.data = nullptr;
-	cameraBufferDesc.descriptorHeap = nullptr;
-	cameraBufferDesc.memoryUsage = MemoryUsage::Dynamic;
-	cameraBufferDesc.owner = this;
-	cameraBufferDesc.size = sizeof(CameraConstants);
-	cameraBufferDesc.stride = sizeof(CameraConstants);
-
-	BufferDesc modelBufferDesc = cameraBufferDesc;
-	modelBufferDesc.size = sizeof(ModelConstants);
-	modelBufferDesc.stride = sizeof(ModelConstants);
 
 	BufferDesc vertexBuffDesc = {};
 	vertexBuffDesc.data = nullptr;
@@ -628,14 +613,32 @@ void Renderer::Startup()
 
 	m_immediateIBO = new IndexBuffer(indexBufferDesc);
 
-	// Allocating the memory so they're ready to use
-	for (int bufferInd = 0; bufferInd < m_cameraCBOArray.size(); bufferInd++) {
-		ConstantBuffer*& cameraBuffer = m_cameraCBOArray[bufferInd];
-		ConstantBuffer*& modelBuffer = m_modelCBOArray[bufferInd];
+	// Assuming worst case scenario, which would be all constant buffers are full and are only engine ones
 
-		cameraBuffer = new ConstantBuffer(cameraBufferDesc);
-		modelBuffer = new ConstantBuffer(modelBufferDesc);
-	}
+	BufferDesc cameraBufferDesc = {};
+	cameraBufferDesc.data = nullptr;
+	cameraBufferDesc.descriptorHeap = nullptr;
+	cameraBufferDesc.memoryUsage = MemoryUsage::Dynamic;
+	cameraBufferDesc.owner = this;
+	cameraBufferDesc.size = sizeof(CameraConstants);
+	cameraBufferDesc.stride = sizeof(CameraConstants);
+
+	BufferDesc modelBufferDesc = cameraBufferDesc;
+	modelBufferDesc.size = sizeof(ModelConstants);
+	modelBufferDesc.stride = sizeof(ModelConstants);
+
+	m_cameraCBOArray = std::vector<ConstantBuffer>(CBV_DESCRIPTORS_AMOUNT / 2, cameraBufferDesc);
+	m_modelCBOArray = std::vector<ConstantBuffer>(CBV_DESCRIPTORS_AMOUNT / 2, modelBufferDesc);
+
+
+	//// Allocating the memory so they're ready to use
+	//for (int bufferInd = 0; bufferInd < m_cameraCBOArray.size(); bufferInd++) {
+	//	ConstantBuffer*& cameraBuffer = m_cameraCBOArray[bufferInd];
+	//	ConstantBuffer*& modelBuffer = m_modelCBOArray[bufferInd];
+
+	//	cameraBuffer = new ConstantBuffer(cameraBufferDesc);
+	//	modelBuffer = new ConstantBuffer(modelBufferDesc);
+	//}
 
 	MaterialSystemConfig matSystemConfig = {
 	this // Renderer
@@ -1104,7 +1107,7 @@ void Renderer::DrawVertexBuffer(VertexBuffer* const& vertexBuffer)
 	m_cbvHandleStart += 2;
 
 	if (!m_hasUsedModelSlot) {
-		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		ConstantBuffer* currentModelCBO = m_currentDrawCtx.m_modelCBO;
 		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
 	}
 	m_immediateCtxs.push_back(m_currentDrawCtx);
@@ -1135,7 +1138,7 @@ void Renderer::DrawIndexedVertexBuffer(VertexBuffer* const& vertexBuffer, IndexB
 	m_cbvHandleStart += 2;
 
 	if (!m_hasUsedModelSlot) {
-		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		ConstantBuffer* currentModelCBO = m_currentDrawCtx.m_modelCBO;
 		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
 	}
 	m_immediateCtxs.push_back(m_currentDrawCtx);
@@ -1170,8 +1173,8 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 		CopyTextureToHeap(texture, ctx.m_srvHandleStart, slot);
 	}
 
-	CopyCBufferToHeap(*ctx.m_cameraCBO, ctx.m_cbvHandleStart, 0);
-	CopyCBufferToHeap(*ctx.m_modelCBO, ctx.m_cbvHandleStart, 1);
+	CopyCBufferToHeap(ctx.m_cameraCBO, ctx.m_cbvHandleStart, 0);
+	CopyCBufferToHeap(ctx.m_modelCBO, ctx.m_cbvHandleStart, 1);
 
 	for (auto& [slot, cbuffer] : ctx.m_boundCBuffers) {
 		CopyCBufferToHeap(cbuffer, ctx.m_cbvHandleStart, slot);
@@ -1304,7 +1307,7 @@ void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* verte
 	std::copy(vertexes, vertexes + numVertexes, std::back_inserter(m_immediateVertexes));
 
 	if (!m_hasUsedModelSlot) {
-		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		ConstantBuffer* currentModelCBO = m_currentDrawCtx.m_modelCBO;
 		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
 	}
 	m_immediateCtxs.push_back(m_currentDrawCtx);
@@ -1352,7 +1355,7 @@ void Renderer::DrawIndexedVertexArray(unsigned int numVertexes, const Vertex_PCU
 	std::copy(indices, indices + numIndices, std::back_inserter(m_immediateIndices));
 
 	if (!m_hasUsedModelSlot) {
-		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		ConstantBuffer* currentModelCBO = m_currentDrawCtx.m_modelCBO;
 		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
 	}
 	m_immediateCtxs.push_back(m_currentDrawCtx);
@@ -1617,6 +1620,8 @@ ResourceView* Renderer::CreateConstantBufferView(ResourceViewInfo const& viewInf
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = cbvDescriptorHeap->GetNextCPUHandle();
 
 	m_device->CreateConstantBufferView(cbvDesc, cpuHandle);
+	HRESULT deviceRemoved = m_device->GetDeviceRemovedReason();
+	ThrowIfFailed(deviceRemoved, Stringf("DEVICE REMOVED %#04x", deviceRemoved).c_str());
 
 	ResourceView* newResourceView = new ResourceView(viewInfo);
 	newResourceView->m_descriptorHandle = cpuHandle;
@@ -1782,11 +1787,11 @@ void Renderer::CopyTextureWithMaterial(Texture* dst, Texture* src, Texture* dept
 
 	SetSamplerMode(SamplerMode::BILINEARCLAMP);
 
-	ConstantBuffer*& cBuffer = GetCurrentCameraBuffer();
+	ConstantBuffer& cBuffer = GetCurrentCameraBuffer();
 	m_currentCameraCBufferSlot++;
 
-	cBuffer->CopyCPUToGPU(&cameraConstants, sizeof(cameraConstants));
-	CopyCBufferToHeap(cBuffer, m_cbvHandleStart, 0);
+	cBuffer.CopyCPUToGPU(&cameraConstants, sizeof(cameraConstants));
+	CopyCBufferToHeap(&cBuffer, m_cbvHandleStart, 0);
 
 	m_commandList->SetPipelineState(effect->m_PSO);
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
@@ -2003,30 +2008,37 @@ void Renderer::CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int hand
 
 }
 
-ConstantBuffer*& Renderer::GetNextCameraBuffer()
+ConstantBuffer& Renderer::GetNextCameraBuffer()
 {
 	m_currentCameraCBufferSlot++;
 	if (m_currentCameraCBufferSlot > m_cameraCBOArray.size()) ERROR_AND_DIE("RAN OUT OF CONSTANT BUFFER SLOTS");
-	ConstantBuffer*& bufferToReturn = m_cameraCBOArray[m_currentCameraCBufferSlot];
+	ConstantBuffer& bufferToReturn = m_cameraCBOArray[m_currentCameraCBufferSlot];
+	bufferToReturn.Initialize();
 	return bufferToReturn;
 }
 
-ConstantBuffer*& Renderer::GetNextModelBuffer()
+ConstantBuffer& Renderer::GetNextModelBuffer()
 {
 	m_currentModelCBufferSlot++;
 	if (m_currentModelCBufferSlot > m_modelCBOArray.size()) ERROR_AND_DIE("RAN OUT OF CONSTANT BUFFER SLOTS");
-	ConstantBuffer*& bufferToReturn = m_modelCBOArray[m_currentModelCBufferSlot];
+	ConstantBuffer& bufferToReturn = m_modelCBOArray[m_currentModelCBufferSlot];
+	bufferToReturn.Initialize();
 	return bufferToReturn;
 }
 
-ConstantBuffer*& Renderer::GetCurrentCameraBuffer()
+ConstantBuffer& Renderer::GetCurrentCameraBuffer()
 {
-	return m_cameraCBOArray[m_currentCameraCBufferSlot];
+	ConstantBuffer& currentCBuffer = m_cameraCBOArray[m_currentCameraCBufferSlot];
+	currentCBuffer.Initialize();
+
+	return currentCBuffer;
 }
 
-ConstantBuffer*& Renderer::GetCurrentModelBuffer()
+ConstantBuffer& Renderer::GetCurrentModelBuffer()
 {
-	return m_modelCBOArray[m_currentModelCBufferSlot];
+	ConstantBuffer& currentCBuffer = m_modelCBOArray[m_currentModelCBufferSlot];
+	currentCBuffer.Initialize();
+	return currentCBuffer;
 }
 
 void Renderer::DrawAllImmediateContexts()
@@ -2189,7 +2201,7 @@ void Renderer::EndFrame()
 
 	m_currentFrame++;
 	g_theMaterialSystem->EndFrame();
-	}
+}
 
 void Renderer::Shutdown()
 {
@@ -2232,21 +2244,21 @@ void Renderer::Shutdown()
 	}
 
 
-	for (int constantBufferInd = 0; constantBufferInd < m_cameraCBOArray.size(); constantBufferInd++) {
-		ConstantBuffer*& cameraBuffer = m_cameraCBOArray[constantBufferInd];
-		ConstantBuffer*& modelBuffer = m_modelCBOArray[constantBufferInd];
+	//for (int constantBufferInd = 0; constantBufferInd < m_cameraCBOArray.size(); constantBufferInd++) {
+	//	ConstantBuffer& cameraBuffer = m_cameraCBOArray[constantBufferInd];
+	//	ConstantBuffer& modelBuffer = m_modelCBOArray[constantBufferInd];
 
-		if (cameraBuffer) {
-			delete cameraBuffer;
-			cameraBuffer = nullptr;
-		}
+	//	if (cameraBuffer) {
+	//		delete cameraBuffer;
+	//		cameraBuffer = nullptr;
+	//	}
 
-		if (modelBuffer) {
-			delete modelBuffer;
-			modelBuffer = nullptr;
-		}
+	//	if (modelBuffer) {
+	//		delete modelBuffer;
+	//		modelBuffer = nullptr;
+	//	}
 
-	}
+	//}
 
 	delete m_immediateVBO;
 	m_immediateVBO = nullptr;
@@ -2291,11 +2303,11 @@ void Renderer::BeginCamera(Camera const& camera)
 	cameraConstants.ViewMatrix = camera.GetViewMatrix();
 	cameraConstants.InvertedMatrix = cameraConstants.ProjectionMatrix.GetInverted();
 
-	ConstantBuffer*& nextCameraBuffer = GetCurrentCameraBuffer();
-	nextCameraBuffer->CopyCPUToGPU(&cameraConstants, sizeof(CameraConstants));
+	ConstantBuffer& nextCameraBuffer = GetCurrentCameraBuffer();
+	nextCameraBuffer.CopyCPUToGPU(&cameraConstants, sizeof(CameraConstants));
 	m_currentCameraCBufferSlot++;
 
-	ConstantBuffer*& nextModelBuffer = GetCurrentModelBuffer();
+	ConstantBuffer& nextModelBuffer = GetCurrentModelBuffer();
 	m_currentModelCBufferSlot++;
 
 	m_currentDrawCtx.m_cameraCBO = &nextCameraBuffer;
@@ -2313,7 +2325,7 @@ void Renderer::EndCamera(Camera const& camera)
 	}
 
 	if (m_hasUsedModelSlot) {
-		ConstantBuffer*& currentModelCBO = *m_currentDrawCtx.m_modelCBO;
+		ConstantBuffer* currentModelCBO = m_currentDrawCtx.m_modelCBO;
 		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
 		m_currentModelCBufferSlot++;
 	}
@@ -2353,7 +2365,7 @@ LiveObjectReporter::~LiveObjectReporter()
 		debugController->Release();
 		debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_DETAIL | DXGI_DEBUG_RLO_IGNORE_INTERNAL));
 		debug->Release();
-	}
+}
 	else {
 		ERROR_AND_DIE("COULD NOT ENABLE DX12 LIVE REPORTING");
 	}

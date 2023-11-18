@@ -7,16 +7,23 @@ ConstantBuffer::ConstantBuffer(BufferDesc const& bufferDesc) :
 	Buffer(bufferDesc)
 {
 
-	bool adjustSize = (m_size & 0xFF);
-	if (adjustSize) {
-		m_size &= ~0xFF;
-		m_size += 256;
+	size_t newSize = (m_size & ~0xFF) + 0x100;
+	m_size = newSize;
 
-	}
 	m_stride = m_size;
-	CreateDynamicBuffer(m_data);
 
 }
+
+/// <summary>
+/// For Cbuffers, it makes sense to choose a different initialization time
+/// </summary>
+void ConstantBuffer::Initialize()
+{
+	if(m_initialized) return;
+	Buffer::Initialize();
+	m_initialized = true;
+}
+
 
 ConstantBuffer::~ConstantBuffer()
 {

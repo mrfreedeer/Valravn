@@ -41,6 +41,7 @@ public:
 	void CopyCPUToGPU(void const* data, size_t sizeInBytes);
 	size_t GetSize() const { return m_size; }
 protected:
+	virtual void Initialize();
 	virtual void CreateDynamicBuffer(void const* data);
 	virtual void CreateDefaultBuffer(void const* data);
 	void CreateAndCopyToUploadBuffer(ID3D12Resource2*& uploadBuffer, void const* data);
