@@ -19,10 +19,9 @@ Billboard::~Billboard()
 void Billboard::Render(Renderer* renderer, Camera const& camera, BillboardType billboardType) const
 {
 	renderer->SetSamplerMode(SamplerMode::POINTCLAMP);
-	//#TODO DX12 FIX THIS
-	//renderer->SetRasterizerState(CullMode::NONE, FillMode::SOLID, WindingOrder::COUNTERCLOCKWISE);
-	//renderer->SetDepthStencilState(DepthTest::ALWAYS, false);
-	//renderer->SetBlendMode(BlendMode::ALPHA);
+	renderer->SetRasterizerState(CullMode::NONE, FillMode::SOLID, WindingOrder::COUNTERCLOCKWISE);
+	renderer->SetDepthStencilState(DepthFunc::ALWAYS, false);
+	renderer->SetBlendMode(BlendMode::ALPHA);
 
 	Mat44 billboardMatrix = GetModelMatrixForBillboard(m_position, camera, billboardType);
 

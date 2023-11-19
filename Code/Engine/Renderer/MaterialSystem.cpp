@@ -37,7 +37,8 @@ Material* MaterialSystem::CreateOrGetMaterial(std::filesystem::path& materialPat
 {
 	std::string materialXMLPath = materialPathNoExt.replace_extension(".xml").string();
 	std::string materialName = materialPathNoExt.filename().replace_extension("").string();
-	Material* material = g_theMaterialSystem->GetMaterialForPath(materialXMLPath.c_str());
+	Material* material = g_theMaterialSystem->GetMaterialForPathOrName(materialXMLPath.c_str(), materialName);
+
 	if (material) {
 		return material;
 	}
@@ -70,6 +71,20 @@ Material* MaterialSystem::GetMaterialForPath(std::filesystem::path const& materi
 	return nullptr;
 }
 
+
+Material* MaterialSystem::GetMaterialForPathOrName(std::filesystem::path const& materialPath, std::string const& materialName)
+{
+	for (int matIndex = 0; matIndex < m_loadedMaterials.size(); matIndex++) {
+		Material* material = m_loadedMaterials[matIndex];
+		bool foundMat = material->GetPath() == materialPath.string();
+		foundMat = foundMat || AreStringsEqualCaseInsensitive(material->GetName(), materialName);
+		if (foundMat) {
+			return material;
+		}
+	}
+
+	return nullptr;
+}
 
 Material* MaterialSystem::CreateMaterial(std::string const& materialXMLFile)
 {

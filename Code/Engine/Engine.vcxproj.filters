@@ -758,6 +758,9 @@
     <Xml Include="Renderer\Materials\PixelizedFXMaterial.xml">
       <Filter>Renderer\Materials</Filter>
     </Xml>
+    <Xml Include="Renderer\Materials\Default3DDiffuseMaterial.xml">
+      <Filter>Renderer\Materials</Filter>
+    </Xml>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Renderer\Materials\Shaders\Stages\Default_p.hlsl">
@@ -794,6 +797,12 @@
       <Filter>Renderer\Materials\Shaders\Stages</Filter>
     </FxCompile>
     <FxCompile Include="Renderer\Materials\Shaders\Stages\PixelizedEffect_v.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\DefaultDiffuse_p.hlsl">
+      <Filter>Renderer\Materials\Shaders\Stages</Filter>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\DefaultDiffuse_v.hlsl">
       <Filter>Renderer\Materials\Shaders\Stages</Filter>
     </FxCompile>
   </ItemGroup>

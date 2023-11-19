@@ -50,14 +50,14 @@ public:
 	float GetTotalLengthTime() const;
 	std::string GetName() const { return m_name; }
 	bool IsScaledBySpeed() const { return m_scaleBySpeed; }
-	std::string GetShaderName() const { return m_shader; }
+	std::string GetMatName() const { return m_material; }
 
 private:
 	SpriteSheet const* m_spriteSheet = nullptr;
 	SpriteAnimPlaybackType m_playbackType = SpriteAnimPlaybackType::LOOP;
 	float m_secondsPerFrame = 1.0f;
 	std::string m_name = "";
-	std::string m_shader = "";
+	std::string m_material = "";
 	Texture const* m_texture = nullptr;
 	std::vector<SpriteAnimDefinition> m_animationsDefs;
 	bool m_scaleBySpeed = false;

@@ -31,6 +31,13 @@ public:
 	Material* CreateOrGetMaterial(std::filesystem::path& materialPathNoExt);
 	Material* GetMaterialForName(std::string const& materialNameNoExt);
 	Material* GetMaterialForPath(std::filesystem::path const& materialPath);
+	/// <summary>
+	/// Uses single loop to get materials with path or name for material. Path > Name
+	/// </summary>
+	/// <param name="materialPath"></param>
+	/// <param name="materialName"></param>
+	/// <returns></returns>
+	Material* GetMaterialForPathOrName(std::filesystem::path const& materialPath, std::string const& materialName);
 	Material* CreateMaterial(std::string const& materialXMLFile);
 	Material* GetSiblingMaterial(Material* material, SiblingMatTypes siblingType, unsigned int newSiblingAccessor);
 private:

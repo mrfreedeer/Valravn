@@ -40,7 +40,21 @@ struct Light
     float4x4 ProjectionMatrix;
 };
 
-cbuffer LightConstants : register(b1)
+
+cbuffer CameraConstants : register(b0)
+{
+    float4x4 ProjectionMatrix;
+    float4x4 ViewMatrix;
+};
+
+cbuffer ModelConstants : register(b1)
+{
+    float4x4 ModelMatrix;
+    float4 ModelColor;
+    float4 ModelPadding;
+}
+
+cbuffer LightConstants : register(b2)
 {
     float3 DirectionalLight;
     float PaddingDirectionalLight;
@@ -49,18 +63,6 @@ cbuffer LightConstants : register(b1)
     Light Lights[MAX_LIGHTS];
 }
 
-cbuffer CameraConstants : register(b2)
-{
-    float4x4 ProjectionMatrix;
-    float4x4 ViewMatrix;
-};
-
-cbuffer ModelConstants : register(b3)
-{
-    float4x4 ModelMatrix;
-    float4 ModelColor;
-    float4 ModelPadding;
-}
 
 Texture2D diffuseTexture : register(t0);
 SamplerState diffuseSampler : register(s0);
@@ -176,7 +178,7 @@ v2p_t VertexMain(vs_input_t input)
     v2p.worldPosition = modelTransform;
     v2p.color = input.color;
     v2p.uv = input.uv;
-    v2p.normal = normalWorldSpace;
+    v2p.normal = normalWorldSpace.xyz;
     
     return v2p;
 }

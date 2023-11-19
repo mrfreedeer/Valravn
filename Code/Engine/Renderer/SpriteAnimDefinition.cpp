@@ -110,7 +110,7 @@ SpriteAnimGroupDefinition::~SpriteAnimGroupDefinition()
 void SpriteAnimGroupDefinition::LoadAnimationsFromXML(XMLElement const& element)
 {
 	m_name = ParseXmlAttribute(element, "name", "Unnamed");
-	m_shader = ParseXmlAttribute(element, "shader", "Default");
+	m_material = ParseXmlAttribute(element, "material", "Default2DMaterial");
 	IntVec2 spriteSheetDims = ParseXmlAttribute(element, "cellCount", IntVec2::ZERO);
 	std::string playbackType = ParseXmlAttribute(element, "playbackMode", "Loop");
 	m_playbackType = SpriteAnimPlaybackType::LOOP;

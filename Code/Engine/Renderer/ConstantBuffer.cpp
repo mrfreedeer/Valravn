@@ -6,10 +6,8 @@
 ConstantBuffer::ConstantBuffer(BufferDesc const& bufferDesc) :
 	Buffer(bufferDesc)
 {
-
-	size_t newSize = (m_size & ~0xFF) + 0x100;
+	size_t newSize = AlignToCBufferStride(m_size);
 	m_size = newSize;
-
 	m_stride = m_size;
 
 }
@@ -24,6 +22,18 @@ void ConstantBuffer::Initialize()
 	m_initialized = true;
 }
 
+
+void ConstantBuffer::CopyCPUToGPU(void const* data, size_t sizeInBytes)
+{
+	sizeInBytes = AlignToCBufferStride(sizeInBytes);
+	Buffer::CopyCPUToGPU(data, sizeInBytes);
+}
+
+size_t ConstantBuffer::AlignToCBufferStride(size_t size) const
+{
+	size_t newSize = (size & ~0xFF) + 0x100;
+	return newSize;
+}
 
 ConstantBuffer::~ConstantBuffer()
 {

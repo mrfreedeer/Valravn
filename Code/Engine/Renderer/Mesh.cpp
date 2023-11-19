@@ -2,6 +2,7 @@
 #include "Engine/Renderer/Renderer.hpp"
 #include "Engine/Renderer/VertexBuffer.hpp"
 #include "Engine/Renderer/IndexBuffer.hpp"
+#include "Engine/Core/StringUtils.hpp"
 #include "Engine/Core/FileUtils.hpp"
 #include "Engine/Core/Rgba8.hpp"
 #include "Engine/Core/ErrorWarningAssert.hpp"
@@ -15,10 +16,13 @@ int LoadPlyModelInfoFromHeader(Strings const& source, int& uvIndexStart, int& am
 	for (int stringIndex = 0; stringIndex < source.size(); stringIndex++) {
 		std::string const& currentString = source[stringIndex];
 		Strings stringSplitBySpace = SplitStringOnDelimiter(currentString, ' ');
-		if (!_stricmp(stringSplitBySpace[0].c_str(), "element")) { // Case insensity 0 == strings are equal
+		std::string trimmedString0 = TrimStringCopy(stringSplitBySpace[0]);
+
+		if(AreStringsEqualCaseInsensitive(trimmedString0, "element")) {
+		//if (!_stricmp(stringSplitBySpace[0].c_str(), "element")) { // Case insensity 0 == strings are equal
 			if (stringSplitBySpace.size() == 3) {
 				int quantity = stoi(stringSplitBySpace[2]);
-				if (!_stricmp(stringSplitBySpace[1].c_str(), "vertex")) {
+				if (AreStringsEqualCaseInsensitive(TrimStringCopy(stringSplitBySpace[1]), "vertex")) {
 					amountOfverts = quantity;
 				}
 				else {
@@ -27,8 +31,10 @@ int LoadPlyModelInfoFromHeader(Strings const& source, int& uvIndexStart, int& am
 			}
 		}
 
-		if (!_stricmp(stringSplitBySpace[0].c_str(), "property")) {
-			if (!_stricmp(stringSplitBySpace[2].c_str(), "s") || !_stricmp(stringSplitBySpace[2].c_str(), "u")) {
+		if (AreStringsEqualCaseInsensitive(trimmedString0, "property")) {
+		//if (!_stricmp(stringSplitBySpace[0].c_str(), "property")) {
+			std::string trimmedString2 = TrimStringCopy(stringSplitBySpace[2]);
+			if (AreStringsEqualCaseInsensitive(trimmedString2, "s") || AreStringsEqualCaseInsensitive(trimmedString2, "u")) {
 				foundUv = true;
 				uvIndexStart = UVStart;
 
@@ -40,7 +46,7 @@ int LoadPlyModelInfoFromHeader(Strings const& source, int& uvIndexStart, int& am
 			}
 		}
 
-		if (!_stricmp(stringSplitBySpace[0].c_str(), "end_header") || !_stricmp(stringSplitBySpace[0].c_str(), "end_header\r")) {
+		if (AreStringsEqualCaseInsensitive(trimmedString0, "end_header")) {
 			return stringIndex + 1;
 		}
 	}

@@ -38,7 +38,7 @@ public:
 	BufferView GetBufferView() const;
 	~Buffer();
 
-	void CopyCPUToGPU(void const* data, size_t sizeInBytes);
+	virtual void CopyCPUToGPU(void const* data, size_t sizeInBytes);
 	size_t GetSize() const { return m_size; }
 protected:
 	virtual void Initialize();

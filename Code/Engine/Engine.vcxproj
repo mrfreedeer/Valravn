@@ -737,6 +737,29 @@ copy /Y "$(ProjectDir)Renderer\D3D12\dxil.dll" "$(SolutionDir)Run\dxil.dll"</Com
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
       </PreprocessorDefinitions>
     </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\DefaultDiffuse_p.hlsl">
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">PixelMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='FastBreak|x64'">PixelMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='FastBreak|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='FastBreak|x64'">6.5</ShaderModel>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='DebugInline|x64'">PixelMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='DebugInline|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='DebugInline|x64'">6.5</ShaderModel>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">PixelMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.5</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="Renderer\Materials\Shaders\Stages\DefaultDiffuse_v.hlsl">
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">VertexMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='FastBreak|x64'">VertexMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='FastBreak|x64'">Vertex</ShaderType>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='DebugInline|x64'">VertexMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='DebugInline|x64'">Vertex</ShaderType>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">VertexMain</EntryPointName>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+    </FxCompile>
     <FxCompile Include="Renderer\Materials\Shaders\Stages\Default_p.hlsl">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)Renderer\Materials\Shaders\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">6.5</ShaderModel>
@@ -1097,6 +1120,7 @@ copy /Y "$(ProjectDir)Renderer\D3D12\dxil.dll" "$(SolutionDir)Run\dxil.dll"</Com
     <Xml Include="Renderer\Materials\DebugDepthMaterial.xml" />
     <Xml Include="Renderer\Materials\DebugXRayMaterial.xml" />
     <Xml Include="Renderer\Materials\Default2DMaterial.xml" />
+    <Xml Include="Renderer\Materials\Default3DDiffuseMaterial.xml" />
     <Xml Include="Renderer\Materials\Default3DMaterial.xml" />
     <Xml Include="Renderer\Materials\DistanceFogFXMaterial.xml" />
     <Xml Include="Renderer\Materials\GrayScaleFXMaterial.xml" />

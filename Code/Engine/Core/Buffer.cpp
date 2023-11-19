@@ -62,6 +62,7 @@ Buffer::~Buffer()
 
 void Buffer::CopyCPUToGPU(void const* data, size_t sizeInBytes)
 {
+	GuaranteeBufferSize(sizeInBytes);
 	//ComPtr<ID3D12Device2>& device = m_owner->m_device;
 
 	//m_buffer->TransitionTo(D3D12_RESOURCE_STATE_GENERIC_READ, m_ow);

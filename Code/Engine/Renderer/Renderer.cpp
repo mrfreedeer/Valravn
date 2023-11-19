@@ -27,6 +27,23 @@
 bool is3DDefault = true;
 MaterialSystem* g_theMaterialSystem = nullptr;
 
+constexpr int g_cameraBufferSlot = 0;
+constexpr int g_modelBufferSlot = 1;
+constexpr int g_lightBufferSlot = 2;
+constexpr int g_engineBufferCount = 3;
+
+struct LightConstants {
+	Vec3 DirectionalLight = Vec3::ZERO;
+	float PaddingDirectionalLight = 0.0f;
+	float DirectionalLightIntensity[4];
+	float AmbientIntensity[4];
+	Light Lights[MAX_LIGHTS];
+	//------------- 16 bytes SSAO Related variables
+	float MaxOcclusionPerSample = 0.00000175f;
+	float SSAOFalloff = 0.00000001f;
+	float SampleRadius = 0.00001f;
+	int SampleSize = 64;
+};
 
 DXGI_FORMAT GetFormatForComponent(D3D_REGISTER_COMPONENT_TYPE componentType, char const* semanticnName, BYTE mask) {
 	// determine DXGI format
@@ -603,6 +620,17 @@ void Renderer::Startup()
 	m_immediateVBO = new VertexBuffer(vertexBuffDesc);
 
 
+
+	BufferDesc diffuseVBuffDesc = {};
+	diffuseVBuffDesc.data = nullptr;
+	diffuseVBuffDesc.descriptorHeap = nullptr;
+	diffuseVBuffDesc.memoryUsage = MemoryUsage::Dynamic;
+	diffuseVBuffDesc.owner = this;
+	diffuseVBuffDesc.size = sizeof(Vertex_PNCU);
+	diffuseVBuffDesc.stride = sizeof(Vertex_PNCU);
+
+	m_immediateDiffuseVBO = new VertexBuffer(diffuseVBuffDesc);
+
 	BufferDesc indexBufferDesc = {};
 	indexBufferDesc.data = nullptr;
 	indexBufferDesc.descriptorHeap = nullptr;
@@ -627,8 +655,15 @@ void Renderer::Startup()
 	modelBufferDesc.size = sizeof(ModelConstants);
 	modelBufferDesc.stride = sizeof(ModelConstants);
 
-	m_cameraCBOArray = std::vector<ConstantBuffer>(CBV_DESCRIPTORS_AMOUNT / 2, cameraBufferDesc);
-	m_modelCBOArray = std::vector<ConstantBuffer>(CBV_DESCRIPTORS_AMOUNT / 2, modelBufferDesc);
+	BufferDesc lightBufferDesc = cameraBufferDesc;
+	lightBufferDesc.size = sizeof(LightConstants);
+	lightBufferDesc.stride = sizeof(LightConstants);
+
+	int engineDescriptorShare = CBV_DESCRIPTORS_AMOUNT / g_engineBufferCount;
+
+	m_cameraCBOArray = std::vector<ConstantBuffer>(engineDescriptorShare, cameraBufferDesc);
+	m_modelCBOArray = std::vector<ConstantBuffer>(engineDescriptorShare, modelBufferDesc);
+	m_lightCBOArray = std::vector<ConstantBuffer>(engineDescriptorShare, modelBufferDesc);
 
 
 	//// Allocating the memory so they're ready to use
@@ -1086,6 +1121,72 @@ void Renderer::SetTopology(TopologyType newTopologyType)
 	m_currentDrawCtx.m_material = siblingMat;
 }
 
+void Renderer::SetDirectionalLight(Vec3 const& direction)
+{
+	m_directionalLight = direction;
+}
+
+void Renderer::SetDirectionalLightIntensity(Rgba8 const& intensity)
+{
+	m_directionalLightIntensity = intensity;
+}
+
+void Renderer::SetAmbientIntensity(Rgba8 const& intensity)
+{
+	m_ambientIntensity = intensity;
+}
+
+bool Renderer::SetLight(Light const& light, int index)
+{
+	if (index < MAX_LIGHTS) {
+		EulerAngles eulerAngle = EulerAngles::CreateEulerAngleFromForward(light.Direction);
+		Mat44 viewMatrix = eulerAngle.GetMatrix_XFwd_YLeft_ZUp();
+		Vec3 fwd = light.Direction.GetNormalized();
+		Vec3 translation = Vec3::ZERO;
+
+		// This is to work with shadow maps, taken of the Real-Time shadows book
+		translation.x = -DotProduct3D(light.Position, viewMatrix.GetIBasis3D());
+		translation.y = -DotProduct3D(light.Position, viewMatrix.GetJBasis3D());
+		translation.z = -DotProduct3D(light.Position, viewMatrix.GetKBasis3D());
+
+		viewMatrix = viewMatrix.GetOrthonormalInverse();
+		viewMatrix.SetTranslation3D(translation);
+
+		Mat44 projectionMatrix = Mat44::CreatePerspectiveProjection(light.SpotAngle, 2.0f, 0.01f, 100.0f);
+		projectionMatrix.Append(m_lightRenderTransform);
+
+		Light& assignedSlot = m_lights[index];
+		assignedSlot = light;
+		assignedSlot.ViewMatrix = viewMatrix;
+		assignedSlot.ProjectionMatrix = projectionMatrix;
+
+		return true;
+	}
+	return false;
+}
+
+void Renderer::BindLightConstants()
+{
+	LightConstants lightConstants = {};
+	lightConstants.DirectionalLight = m_directionalLight;
+	m_directionalLightIntensity.GetAsFloats(lightConstants.DirectionalLightIntensity);
+	m_ambientIntensity.GetAsFloats(lightConstants.AmbientIntensity);
+
+	//lightConstants.MaxOcclusionPerSample = m_SSAOMaxOcclusionPerSample;
+	//lightConstants.SampleRadius = m_SSAOSampleRadius;
+	//lightConstants.SampleSize = m_SSAOSampleSize;
+	//lightConstants.SSAOFalloff = m_SSAOFalloff;
+
+	memcpy(&lightConstants.Lights, &m_lights, sizeof(m_lights));
+
+	ConstantBuffer& lightBuffer = GetCurrentLightBuffer();
+	m_currentLightCBufferSlot++;
+
+	lightBuffer.CopyCPUToGPU(&lightConstants, sizeof(lightConstants));
+
+	BindConstantBuffer(&lightBuffer, g_lightBufferSlot);
+}
+
 void Renderer::DrawVertexBuffer(VertexBuffer* const& vertexBuffer)
 {
 	BindVertexBuffer(vertexBuffer);
@@ -1173,8 +1274,8 @@ void Renderer::DrawImmediateCtx(ImmediateContext& ctx)
 		CopyTextureToHeap(texture, ctx.m_srvHandleStart, slot);
 	}
 
-	CopyCBufferToHeap(ctx.m_cameraCBO, ctx.m_cbvHandleStart, 0);
-	CopyCBufferToHeap(ctx.m_modelCBO, ctx.m_cbvHandleStart, 1);
+	CopyCBufferToHeap(ctx.m_cameraCBO, ctx.m_cbvHandleStart, g_cameraBufferSlot);
+	CopyCBufferToHeap(ctx.m_modelCBO, ctx.m_cbvHandleStart, g_modelBufferSlot);
 
 	for (auto& [slot, cbuffer] : ctx.m_boundCBuffers) {
 		CopyCBufferToHeap(cbuffer, ctx.m_cbvHandleStart, slot);
@@ -1289,19 +1390,6 @@ void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* verte
 
 	m_cbvHandleStart += 2;
 
-	//const UINT vertexBufferSize = numVertexes * sizeof(Vertex_PCU);
-
-	/*BufferDesc bufferDesc = {};
-	bufferDesc.data = vertexes;
-	bufferDesc.descriptorHeap = nullptr;
-	bufferDesc.memoryUsage = MemoryUsage::Dynamic;
-	bufferDesc.owner = this;
-	bufferDesc.size = vertexBufferSize;
-	bufferDesc.stride = sizeof(Vertex_PCU);
-
-	VertexBuffer* vBuffer = new VertexBuffer(bufferDesc);
-	m_currentDrawCtx.m_immediateBuffer = vBuffer;*/
-
 	m_currentDrawCtx.m_vertexCount = (size_t)numVertexes;
 	m_currentDrawCtx.m_vertexStart = m_immediateVertexes.size();
 	std::copy(vertexes, vertexes + numVertexes, std::back_inserter(m_immediateVertexes));
@@ -1312,6 +1400,46 @@ void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* verte
 	}
 	m_immediateCtxs.push_back(m_currentDrawCtx);
 	m_hasUsedModelSlot = true;
+}
+
+void Renderer::DrawVertexArray(unsigned int numVertexes, const Vertex_PNCU* vertexes)
+{
+	m_currentDrawCtx.m_srvHandleStart = m_srvHandleStart;
+	m_currentDrawCtx.m_cbvHandleStart = m_cbvHandleStart;
+
+	auto findHighestValTex = [](const std::pair<unsigned int, Texture const*>& a, const std::pair<unsigned int, Texture const*>& b)->bool { return a.first < b.first; };
+	auto findHighestValCbuffer = [](const std::pair<unsigned int, ConstantBuffer*>& a, const std::pair<unsigned int, ConstantBuffer*>& b)->bool { return a.first < b.first; };
+
+	auto texMaxIt = std::max_element(m_currentDrawCtx.m_boundTextures.begin(), m_currentDrawCtx.m_boundTextures.end(), findHighestValTex);
+	auto cBufferMaxIt = std::max_element(m_currentDrawCtx.m_boundCBuffers.begin(), m_currentDrawCtx.m_boundCBuffers.end(), findHighestValCbuffer);
+
+	unsigned int texMax = (texMaxIt != m_currentDrawCtx.m_boundTextures.end()) ? texMaxIt->first : 0;
+	unsigned int cBufferMax = (cBufferMaxIt != m_currentDrawCtx.m_boundCBuffers.end()) ? cBufferMaxIt->first : 0;
+
+	m_srvHandleStart += texMax + 1;
+	m_cbvHandleStart += cBufferMax + 1;
+
+	m_cbvHandleStart += 2;
+
+	m_currentDrawCtx.m_vertexCount = (size_t)numVertexes;
+	m_currentDrawCtx.m_vertexStart = m_immediateDiffuseVertexes.size();
+	std::copy(vertexes, vertexes + numVertexes, std::back_inserter(m_immediateDiffuseVertexes));
+
+	if (!m_hasUsedModelSlot) {
+		ConstantBuffer* currentModelCBO = m_currentDrawCtx.m_modelCBO;
+		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
+	}
+
+	m_currentDrawCtx.m_immediateVBO = &m_immediateDiffuseVBO;
+	m_immediateCtxs.push_back(m_currentDrawCtx);
+	m_hasUsedModelSlot = true;
+	m_currentDrawCtx.m_immediateVBO = nullptr;
+
+}
+
+void Renderer::DrawVertexArray(std::vector<Vertex_PNCU> const& vertexes)
+{
+	DrawVertexArray((unsigned int)vertexes.size(), vertexes.data());
 }
 
 void Renderer::DrawIndexedVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes, unsigned int numIndices, unsigned int const* indices)
@@ -1333,19 +1461,6 @@ void Renderer::DrawIndexedVertexArray(unsigned int numVertexes, const Vertex_PCU
 
 	m_cbvHandleStart += 2;
 
-	//const UINT vertexBufferSize = numVertexes * sizeof(Vertex_PCU);
-
-	/*BufferDesc bufferDesc = {};
-	bufferDesc.data = vertexes;
-	bufferDesc.descriptorHeap = nullptr;
-	bufferDesc.memoryUsage = MemoryUsage::Dynamic;
-	bufferDesc.owner = this;
-	bufferDesc.size = vertexBufferSize;
-	bufferDesc.stride = sizeof(Vertex_PCU);
-
-	VertexBuffer* vBuffer = new VertexBuffer(bufferDesc);
-	m_currentDrawCtx.m_immediateBuffer = vBuffer;*/
-
 	m_currentDrawCtx.m_vertexCount = (size_t)numVertexes;
 	m_currentDrawCtx.m_vertexStart = m_immediateVertexes.size();
 	std::copy(vertexes, vertexes + numVertexes, std::back_inserter(m_immediateVertexes));
@@ -1364,6 +1479,49 @@ void Renderer::DrawIndexedVertexArray(unsigned int numVertexes, const Vertex_PCU
 }
 
 void Renderer::DrawIndexedVertexArray(std::vector<Vertex_PCU> const& vertexes, std::vector<unsigned int> const& indices)
+{
+	DrawIndexedVertexArray((unsigned int)vertexes.size(), vertexes.data(), (unsigned int)indices.size(), indices.data());
+}
+
+void Renderer::DrawIndexedVertexArray(unsigned int numVertexes, const Vertex_PNCU* vertexes, unsigned int numIndices, unsigned int const* indices)
+{
+	m_currentDrawCtx.m_cbvHandleStart = m_cbvHandleStart;
+	m_currentDrawCtx.m_isIndexedDraw = true;
+
+	auto findHighestValTex = [](const std::pair<unsigned int, Texture const*>& a, const std::pair<unsigned int, Texture const*>& b)->bool { return a.first < b.first; };
+	auto findHighestValCbuffer = [](const std::pair<unsigned int, ConstantBuffer*>& a, const std::pair<unsigned int, ConstantBuffer*>& b)->bool { return a.first < b.first; };
+
+	auto texMaxIt = std::max_element(m_currentDrawCtx.m_boundTextures.begin(), m_currentDrawCtx.m_boundTextures.end(), findHighestValTex);
+	auto cBufferMaxIt = std::max_element(m_currentDrawCtx.m_boundCBuffers.begin(), m_currentDrawCtx.m_boundCBuffers.end(), findHighestValCbuffer);
+
+	unsigned int texMax = (texMaxIt != m_currentDrawCtx.m_boundTextures.end()) ? texMaxIt->first : 0;
+	unsigned int cBufferMax = (cBufferMaxIt != m_currentDrawCtx.m_boundCBuffers.end()) ? cBufferMaxIt->first : 0;
+
+	m_srvHandleStart += texMax + 1;
+	m_cbvHandleStart += cBufferMax + 1;
+
+	m_cbvHandleStart += 2;
+
+	m_currentDrawCtx.m_vertexCount = (size_t)numVertexes;
+	m_currentDrawCtx.m_vertexStart = m_immediateDiffuseVertexes.size();
+	std::copy(vertexes, vertexes + numVertexes, std::back_inserter(m_immediateDiffuseVertexes));
+
+	m_currentDrawCtx.m_indexCount = (size_t)numIndices;
+	m_currentDrawCtx.m_indexStart = m_immediateIndices.size();
+	std::copy(indices, indices + numIndices, std::back_inserter(m_immediateIndices));
+
+	if (!m_hasUsedModelSlot) {
+		ConstantBuffer* currentModelCBO = m_currentDrawCtx.m_modelCBO;
+		currentModelCBO->CopyCPUToGPU(&m_currentDrawCtx.m_modelConstants, sizeof(ModelConstants));
+	}
+	m_currentDrawCtx.m_immediateVBO = &m_immediateDiffuseVBO;
+	m_immediateCtxs.push_back(m_currentDrawCtx);
+	m_hasUsedModelSlot = true;
+	m_currentDrawCtx.m_isIndexedDraw = false;
+	m_currentDrawCtx.m_immediateVBO = nullptr;
+}
+
+void Renderer::DrawIndexedVertexArray(std::vector<Vertex_PNCU> const& vertexes, std::vector<unsigned int> const& indices)
 {
 	DrawIndexedVertexArray((unsigned int)vertexes.size(), vertexes.data(), (unsigned int)indices.size(), indices.data());
 }
@@ -1959,6 +2117,23 @@ void Renderer::BindMaterial(Material* mat)
 	m_currentDrawCtx.m_material = mat;
 }
 
+void Renderer::BindMaterialByName(char const* materialName)
+{
+	Material* material = g_theMaterialSystem->GetMaterialForName(materialName);
+	if(!material) material = GetDefaultMaterial();
+
+	BindMaterial(material);
+}
+
+void Renderer::BindMaterialByPath(std::filesystem::path materialPath)
+{
+	materialPath.replace_extension("xml");
+	Material* material = g_theMaterialSystem->GetMaterialForPath(materialPath);
+	if (!material) material = GetDefaultMaterial();
+
+	BindMaterial(material);
+}
+
 void Renderer::BindVertexBuffer(VertexBuffer* const& vertexBuffer)
 {
 	m_currentDrawCtx.m_immediateVBO = &vertexBuffer;
@@ -2026,6 +2201,15 @@ ConstantBuffer& Renderer::GetNextModelBuffer()
 	return bufferToReturn;
 }
 
+ConstantBuffer& Renderer::GetNextLightBuffer()
+{
+	m_currentLightCBufferSlot++;
+	if (m_currentLightCBufferSlot > m_lightCBOArray.size()) ERROR_AND_DIE("RAN OUT OF CONSTANT BUFFER SLOTS");
+	ConstantBuffer& bufferToReturn = m_lightCBOArray[m_currentLightCBufferSlot];
+	bufferToReturn.Initialize();
+	return bufferToReturn;
+}
+
 ConstantBuffer& Renderer::GetCurrentCameraBuffer()
 {
 	ConstantBuffer& currentCBuffer = m_cameraCBOArray[m_currentCameraCBufferSlot];
@@ -2041,8 +2225,16 @@ ConstantBuffer& Renderer::GetCurrentModelBuffer()
 	return currentCBuffer;
 }
 
+ConstantBuffer& Renderer::GetCurrentLightBuffer()
+{
+	ConstantBuffer& currentCBuffer = m_lightCBOArray[m_currentLightCBufferSlot];
+	currentCBuffer.Initialize();
+	return currentCBuffer;
+}
+
 void Renderer::DrawAllImmediateContexts()
 {
+	// Unlit
 	size_t vertexesSize = sizeof(Vertex_PCU) * m_immediateVertexes.size();
 	m_immediateVBO->GuaranteeBufferSize(vertexesSize);
 	m_immediateVBO->CopyCPUToGPU(m_immediateVertexes.data(), vertexesSize);
@@ -2051,7 +2243,14 @@ void Renderer::DrawAllImmediateContexts()
 	m_immediateIBO->GuaranteeBufferSize(indexSize);
 	m_immediateIBO->CopyCPUToGPU(m_immediateIndices.data(), indexSize);
 
-	for (ImmediateContext& ctx : m_immediateCtxs) {
+	// Lit
+	size_t vertexesDiffuseSize = sizeof(Vertex_PNCU) * m_immediateDiffuseVertexes.size();
+	m_immediateDiffuseVBO->GuaranteeBufferSize(vertexesDiffuseSize);
+	m_immediateDiffuseVBO->CopyCPUToGPU(m_immediateDiffuseVertexes.data(), vertexesDiffuseSize);
+
+	for (unsigned int ctxIndex = 0; ctxIndex < m_immediateCtxs.size(); ctxIndex++) {
+	//for (ImmediateContext& ctx : m_immediateCtxs) {
+		ImmediateContext& ctx = m_immediateCtxs[ctxIndex];
 		DrawImmediateCtx(ctx);
 	}
 }
@@ -2262,6 +2461,9 @@ void Renderer::Shutdown()
 
 	delete m_immediateVBO;
 	m_immediateVBO = nullptr;
+
+	delete m_immediateDiffuseVBO;
+	m_immediateDiffuseVBO = nullptr;
 
 	delete m_immediateIBO;
 	m_immediateIBO = nullptr;

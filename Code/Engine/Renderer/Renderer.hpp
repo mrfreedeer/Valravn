@@ -155,10 +155,19 @@ public:
 	void ClearDepth(float clearDepth = 1.0f);
 	Material* CreateOrGetMaterial(std::filesystem::path materialPathNoExt);
 	Texture* CreateOrGetTextureFromFile(char const* imageFilePath);
+
+	// Unlit vertex array
 	void DrawVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes);
 	void DrawVertexArray(std::vector<Vertex_PCU> const& vertexes);
 	void DrawIndexedVertexArray(unsigned int numVertexes, const Vertex_PCU* vertexes, unsigned int numIndices, unsigned int const* indices);
 	void DrawIndexedVertexArray(std::vector<Vertex_PCU> const& vertexes, std::vector<unsigned int> const& indices);
+
+	// Lit vertex array
+	void DrawVertexArray(unsigned int numVertexes, const Vertex_PNCU* vertexes);
+	void DrawVertexArray(std::vector<Vertex_PNCU> const& vertexes);
+	void DrawIndexedVertexArray(unsigned int numVertexes, const Vertex_PNCU* vertexes, unsigned int numIndices, unsigned int const* indices);
+	void DrawIndexedVertexArray(std::vector<Vertex_PNCU> const& vertexes, std::vector<unsigned int> const& indices);
+
 	void SetModelMatrix(Mat44 const& modelMat);
 	void SetModelColor(Rgba8 const& modelColor);
 	void ExecuteCommandLists(ID3D12CommandList** commandLists, unsigned int count);
@@ -176,9 +185,12 @@ public:
 	void BindConstantBuffer(ConstantBuffer* cBuffer, unsigned int slot = 0);
 	void BindTexture(Texture const* texture, unsigned int slot = 0);
 	void BindMaterial(Material* mat);
+	void BindMaterialByName(char const* materialName);
+	void BindMaterialByPath(std::filesystem::path materialPath);
 	void BindVertexBuffer(VertexBuffer* const& vertexBuffer);
 	void BindIndexBuffer(IndexBuffer* const& indexBuffer, size_t indexCount);
 
+	// Setters
 	void SetMaterialPSO(Material* mat);
 	void SetBlendMode(BlendMode newBlendMode);
 	void SetCullMode(CullMode newCullMode);
@@ -189,6 +201,12 @@ public:
 	void SetWriteDepth(bool writeDepth);
 	void SetDepthStencilState(DepthFunc newDepthFunc, bool writeDepth);
 	void SetTopology(TopologyType newTopologyType);
+	void SetDirectionalLight(Vec3 const& direction);
+	void SetDirectionalLightIntensity(Rgba8 const& intensity);
+	void SetAmbientIntensity(Rgba8 const& intensity);
+	bool SetLight(Light const& light, int index);
+	void SetLightRenderMatrix(Mat44 gameToRenderMatrix) { m_lightRenderTransform = gameToRenderMatrix; }
+	void BindLightConstants();
 
 	void DrawVertexBuffer(VertexBuffer* const& vertexBuffer);
 	void DrawIndexedVertexBuffer(VertexBuffer* const& vertexBuffer, IndexBuffer* const& indexBuffer, size_t indexCount);
@@ -259,10 +277,15 @@ private:
 	void ResetGPUDescriptorHeaps();
 	void CopyTextureToHeap(Texture const* textureToBind, unsigned int handleStart, unsigned int slot = 0);
 	void CopyCBufferToHeap(ConstantBuffer* bufferToBind, unsigned int handleStart, unsigned int slot = 0);
+
+	// Handling of pre-allocated engine buffers
 	ConstantBuffer& GetNextCameraBuffer();
 	ConstantBuffer& GetNextModelBuffer();
+	ConstantBuffer& GetNextLightBuffer();
 	ConstantBuffer& GetCurrentCameraBuffer();
 	ConstantBuffer& GetCurrentModelBuffer();
+	ConstantBuffer& GetCurrentLightBuffer();
+
 	void SetColorTarget(Texture* dst);
 
 	void DrawAllEffects();
@@ -280,58 +303,70 @@ private:
 	ComPtr<ID3D12RootSignature> m_rootSignature;
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<IDXGISwapChain4> m_swapChain;
-	std::vector<Texture*> m_backBuffers;
-	std::vector<Texture*> m_defaultRenderTargets;
-	Texture* m_defaultDepthTarget = nullptr;
-	Texture* m_defaultTexture = nullptr;
 	ComPtr<ID3D12GraphicsCommandList2> m_commandList;
-	/// <summary>
-	/// Command list dedicated to immediate need for whatever buffer related purposes
-	/// </summary>
 	ComPtr<ID3D12GraphicsCommandList2> m_ResourcesCommandList;
-	std::vector<ComPtr<ID3D12CommandAllocator>> m_commandAllocators;
-	std::vector<ID3D12Resource*> m_frameUploadHeaps;
-	//ID3D12DescriptorHeap* m_RTVdescriptorHeap;
-	std::vector<DescriptorHeap*> m_defaultDescriptorHeaps;
-	std::vector<DescriptorHeap*> m_defaultGPUDescriptorHeaps;
 	ComPtr<ID3D12Fence1> m_fence;
 	ComPtr<IDXGIFactory4> m_dxgiFactory;
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 
+	std::vector<ComPtr<ID3D12CommandAllocator>> m_commandAllocators;
+	std::vector<Texture*> m_backBuffers;
+	std::vector<Texture*> m_defaultRenderTargets;
 	std::vector<ShaderByteCode*> m_shaderByteCodes;
-	std::vector<ImmediateContext> m_immediateCtxs;
-	std::vector<FxContext> m_effectsCtxs;
 	std::vector<Texture*> m_loadedTextures;
 	std::vector<BitmapFont*> m_loadedFonts;
+
+	std::vector<ID3D12Resource*> m_frameUploadHeaps;
+	//ID3D12DescriptorHeap* m_RTVdescriptorHeap;
+	std::vector<DescriptorHeap*> m_defaultDescriptorHeaps;
+	std::vector<DescriptorHeap*> m_defaultGPUDescriptorHeaps;
+
+	std::vector<ImmediateContext> m_immediateCtxs;
+	std::vector<FxContext> m_effectsCtxs;
+	std::vector<ConstantBuffer> m_cameraCBOArray;
+	std::vector<ConstantBuffer> m_modelCBOArray;
+	std::vector<ConstantBuffer> m_lightCBOArray;
+	std::vector<Vertex_PCU> m_immediateVertexes;
+	std::vector<Vertex_PNCU> m_immediateDiffuseVertexes;
+	std::vector<unsigned int> m_immediateIndices;
+	std::vector<unsigned int> m_fenceValues;
+
 	Material* m_default2DMaterial = nullptr;
 	Material* m_default3DMaterial = nullptr;
-	D3D12_VIEWPORT m_viewport;
-	D3D12_RECT m_scissorRect;
-	std::vector<unsigned int> m_fenceValues;
-	HANDLE m_fenceEvent;
+	Texture* m_defaultDepthTarget = nullptr;
+	Texture* m_defaultTexture = nullptr;
+	Camera const* m_currentCamera = nullptr;
+	VertexBuffer* m_immediateVBO = nullptr;
+	VertexBuffer* m_immediateDiffuseVBO = nullptr;
+	IndexBuffer* m_immediateIBO = nullptr;
+	HANDLE m_fenceEvent; // void*
+
 	bool m_useWARP = false;
 	bool m_uploadRequested = false;
+	bool m_isCommandListOpen =false;
+	bool m_hasUsedModelSlot = false;
+
 	unsigned int m_currentRenderTarget = 0;
 	unsigned int m_currentBackBuffer = 0;
 	unsigned int m_antiAliasingLevel = 0;
 	unsigned int m_currentFrame = 0;
 	unsigned int m_RTVdescriptorSize = 0;
-
-	std::vector<ConstantBuffer> m_cameraCBOArray;
-	std::vector<ConstantBuffer> m_modelCBOArray;
-	std::vector<Vertex_PCU> m_immediateVertexes;
-	std::vector<unsigned int> m_immediateIndices;
-	VertexBuffer* m_immediateVBO = nullptr;
-	IndexBuffer* m_immediateIBO = nullptr;
 	unsigned int m_currentCameraCBufferSlot = 0;
 	unsigned int m_currentModelCBufferSlot = 0;
-	bool m_hasUsedModelSlot = false;
-	Camera const* m_currentCamera = nullptr;
-
-	ImmediateContext m_currentDrawCtx = {};
+	unsigned int m_currentLightCBufferSlot = 0;
 	unsigned int m_srvHandleStart = 0;
 	unsigned int m_cbvHandleStart = 0;
-	bool m_isCommandListOpen =false;
+
+	D3D12_VIEWPORT m_viewport = {};
+	D3D12_RECT m_scissorRect = {};
+
+	ImmediateContext m_currentDrawCtx = {};
+	// Lighting
+	Light m_lights[MAX_LIGHTS];
+	Vec3 m_directionalLight = Vec3(0.0f, 0.0f, -1.0f);
+	Rgba8 m_directionalLightIntensity = Rgba8::WHITE;
+	Rgba8 m_ambientIntensity = Rgba8::WHITE;
+	Mat44 m_lightRenderTransform = Mat44();
 };
 
 template<typename T_Object>
